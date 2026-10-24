@@ -184,7 +184,7 @@ func _build_engineering() -> void:
         var b: int = int(BOARD_LINKS[i][1])
         var mid: Vector2 = (slot_buttons[a].position+slot_buttons[a].size*0.5 + slot_buttons[b].position+slot_buttons[b].size*0.5)*0.5
         var wire := _button(ui_root,"",mid-Vector2(15,11),Vector2(30,24),_wire_clicked.bind(i))
-        wire_buttons.append(wire)
+        link_buttons.append(wire)
     _text(ui_root,"ACTIVE INVENTIONS",Vector2(843,336),15,GOLD,292)
     _rect(ui_root,Vector2(839,365),Vector2(302,92),Color("#263443"))
     recipe_title = _text(ui_root,"No invention",Vector2(847,370),15,INK,285,23)
