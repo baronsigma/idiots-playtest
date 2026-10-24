@@ -1,0 +1,90 @@
+{
+  "goblin": {
+    "name": "Drunk Goblin",
+    "kind": "creature",
+    "rider": 2,
+    "mount": 0,
+    "carry": 2,
+    "move": 1.0,
+    "tags": [
+      "drunk",
+      "rider"
+    ]
+  },
+  "chicken": {
+    "name": "Chicken",
+    "kind": "creature",
+    "rider": 1,
+    "mount": 2,
+    "carry": 1,
+    "move": 1.7,
+    "tags": [
+      "animal",
+      "mount",
+      "wandering"
+    ]
+  },
+  "torch": {
+    "name": "Torch",
+    "kind": "modifier",
+    "fire": 3,
+    "tags": [
+      "fire",
+      "heat"
+    ]
+  },
+  "hive": {
+    "name": "Beehive",
+    "kind": "emitter",
+    "emit": "bees",
+    "emit_priority": 3,
+    "tags": [
+      "bees",
+      "swarm"
+    ]
+  },
+  "saucer": {
+    "name": "Flying Saucer",
+    "kind": "vehicle",
+    "mount": 3,
+    "carry": 3,
+    "launch": 3,
+    "move": 2.0,
+    "tags": [
+      "metal",
+      "projectile",
+      "mount"
+    ]
+  },
+  "ghost": {
+    "name": "Ghost Jar",
+    "kind": "modifier",
+    "ghost": 3,
+    "emit": "ghosts",
+    "emit_priority": 1,
+    "tags": [
+      "intangible",
+      "ghost"
+    ]
+  },
+  "venom": {
+    "name": "Venom Flask",
+    "kind": "modifier",
+    "poison": 2,
+    "tags": [
+      "poison",
+      "liquid"
+    ]
+  },
+  "mushroom": {
+    "name": "Mushroom",
+    "kind": "emitter",
+    "spores": 2,
+    "emit": "spores",
+    "emit_priority": 2,
+    "tags": [
+      "fungal",
+      "spores"
+    ]
+  }
+}

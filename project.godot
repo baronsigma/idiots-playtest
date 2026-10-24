@@ -1,0 +1,25 @@
+; IDIOTS! — Godot migration vertical slice
+config_version=5
+
+[application]
+config/name="IDIOTS! - Godot Alpha 0.0.8.2"
+run/main_scene="res://scenes/Main.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+config/description="Continuous absurd autobattler with procedural engineering"
+
+[display]
+window/size/viewport_width=1152
+window/size/viewport_height=648
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+window/dpi/allow_hidpi=false
+
+[rendering]
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/default_filters/use_nearest_mipmap_filter=false
+textures/canvas_textures/default_texture_filter=0
+environment/defaults/default_clear_color=Color(0.051, 0.074, 0.095, 1)
+
+[physics]
+2d/default_gravity=0.0
