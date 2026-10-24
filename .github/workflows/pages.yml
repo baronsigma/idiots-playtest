@@ -25,6 +25,15 @@ jobs:
           include-templates: true
       - name: Import Godot project
         run: godot --headless --path . --editor --import --quit
+      - name: Smoke-test main scene and GDScript
+        shell: bash
+        run: |
+          set -o pipefail
+          godot --headless --path . --quit-after 120 2>&1 | tee godot-smoke.log
+          if grep -E '(SCRIPT ERROR:|Parse Error:|Failed to load script|Invalid access to property|Invalid call\.)' godot-smoke.log; then
+            echo "Godot reported script or runtime errors. Failing deployment."
+            exit 1
+          fi
       - name: Export HTML5 build
         run: |
           mkdir -p dist
