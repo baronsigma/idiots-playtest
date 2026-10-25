@@ -22,6 +22,8 @@ jobs:
         run: godot --headless --path . --script res://tests/test_parity.gd
       - name: Test 20-part invention grammar and animated effects
         run: godot --headless --path . --script res://tests/test_engineering.gd
+      - name: Check 90-second combat pacing and movement
+        run: godot --headless --path . --script res://tests/test_feel.gd
       - name: Smoke test full scene
         shell: bash
         run: |
