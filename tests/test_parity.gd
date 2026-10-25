@@ -38,7 +38,7 @@ func _run() -> void:
     check(main._recipes().size() == 4, "Explicit links split independent inventions")
     main._refresh_board()
     main.world.start("bog", 20, 16)
-    check(int(main.world.max_hp) == 183 and main.world.gold == 44, "Meta starter bonus applies")
+    check(int(main.world.max_hp) == int(main.world.HEROES["bog"].hp) + 20 and main.world.gold == 44, "Meta starter bonus applies")
     main.world.start("kram")
     check(main.world.weapon_level == 0, "Weapon evolution resets on new run")
     check(main.world.discovery_index == 0, "Discovery milestones reset")
