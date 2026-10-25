@@ -384,7 +384,10 @@ func _refresh_board() -> void:
     else:
         var first: Dictionary=latest_recipes[0]
         recipe_title.text=str(first.title).to_upper()
-        recipe_details.text="HOST: "+str(first.host).to_upper()+"  •  "+str(first.mode).to_upper()+"\nWEAKNESS: "+str(first.weakness)
+        if first.ids.size()==1:
+            recipe_details.text="SOLO ACTIVE • "+str(first.solo_effect)
+        else:
+            recipe_details.text="HOST: "+str(first.host).to_upper()+"  •  "+str(first.mode).to_upper()+"\nWEAKNESS: "+str(first.weakness)
         if latest_recipes.size()>1:
             recipe_details.text += "\n+"+str(latest_recipes.size()-1)+" independent invention(s)"
     selection_label.text="Select a part, then place it.  "+str(latest_recipes.size())+" active circuits."
