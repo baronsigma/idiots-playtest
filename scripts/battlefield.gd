@@ -10,6 +10,7 @@ const ARENA := Rect2(18.0, 95.0, 799.0, 525.0)
 const MAX_ENEMIES := 48
 const MAX_HOSTILE_SHOTS := 22
 const MAX_HIT_FLASHES := 45
+const MAX_ROCKFALLS := 12
 const MAX_BEES := 44
 const MAX_SKELETONS := 12
 const MAX_ARCS := 48
@@ -51,6 +52,9 @@ var sparks: Array = []
 var hostile_shots: Array = []
 var attack_waves: Array = []
 var impact_rings: Array = []
+var rockfalls: Array = []
+var speed_boost := 0.0
+var coffee_boost := 0.0
 var hero_flash := 0.0
 var hero_direction := Vector2.RIGHT
 var hero_stride := 0.0
@@ -108,6 +112,9 @@ func start(hero_id: String, hp_boost: int = 0, gold_boost: int = 0) -> void:
     hostile_shots.clear()
     attack_waves.clear()
     impact_rings.clear()
+    rockfalls.clear()
+    speed_boost = 0.0
+    coffee_boost = 0.0
     hero_flash = 0.0
     hero_stride = 0.0
     hero_attack_pose = 0.0
@@ -152,7 +159,7 @@ func set_inventions(recipes: Array) -> void:
             maintained["recipe"] = recipe
             next.append(maintained)
         else:
-            next.append({"key":key, "recipe":recipe, "pos":hero_position + Vector2(rng.randf_range(-90.0,90.0),rng.randf_range(-64.0,64.0)), "target":Vector2.ZERO, "cooldown":rng.randf_range(0.7,1.6), "wander":0.0, "phase":rng.randf_range(0.0,9.0), "damage":0.0, "casts":0, "trail_clock":0.0,"peck_clock":0.3,"pulse":0.0})
+            next.append({"key":key, "recipe":recipe, "pos":hero_position + Vector2(rng.randf_range(-90.0,90.0),rng.randf_range(-64.0,64.0)), "target":Vector2.ZERO, "cooldown":rng.randf_range(0.20,0.48), "wander":0.0, "phase":rng.randf_range(0.0,9.0), "damage":0.0, "casts":0, "trail_clock":0.0,"peck_clock":0.3,"pulse":0.0})
     actors = next
     updated.emit()
 
@@ -277,6 +284,8 @@ func _process(delta: float) -> void:
     var dt := minf(delta,0.045)
     clock += dt
     hero_ward = maxf(0.0, hero_ward - dt)
+    speed_boost = maxf(0.0, speed_boost - dt)
+    coffee_boost = maxf(0.0, coffee_boost - dt)
     concern = minf(100.0, concern + dt * (0.035 + clock*0.0007))
     hero_flash = maxf(0.0,hero_flash-dt)
     hero_attack_pose = maxf(0.0,hero_attack_pose-dt)
@@ -287,6 +296,7 @@ func _process(delta: float) -> void:
     _update_enemies(dt)
     _update_hostile_shots(dt)
     _update_actors(dt)
+    _update_rockfalls(dt)
     _update_projectiles(dt)
     _update_bees(dt)
     _update_skeletons(dt)
@@ -351,7 +361,7 @@ func _update_hero(dt: float) -> void:
     var dist: float = toward.length()
     var forward: Vector2 = toward.normalized()
     var ideal_range: float = float(HEROES[hero_type].range)
-    var speed: float = float(HEROES[hero_type].speed)
+    var speed: float = float(HEROES[hero_type].speed) * (1.22 if speed_boost > 0.0 else 1.0)
     var steer := Vector2.ZERO
     if hero_type == "kram":
         if dist < 125.0:
@@ -392,7 +402,7 @@ func _update_hero(dt: float) -> void:
         clampf(hero_position.y,ARENA.position.y+24.0,ARENA.end.y-20.0))
     if hero_cooldown > 0.0 or dist > ideal_range+15.0:
         return
-    hero_cooldown = (0.72 if hero_type=="jimothy" else 0.88 if hero_type=="bog" else 0.79)
+    hero_cooldown = (0.72 if hero_type=="jimothy" else 0.88 if hero_type=="bog" else 0.79) * (0.76 if coffee_boost > 0.0 else 1.0)
     hero_attack_pose = 0.19
     hero_attack_total += 1
     var damage: float = float(HEROES[hero_type].damage)+float(weapon_level)*5.0
@@ -567,6 +577,13 @@ func _update_actors(dt: float) -> void:
             a.pulse = 0.32
             _impact(a.pos,"fire" if recipe.mods.fire else "poison" if recipe.mods.poison else "ice" if recipe.mods.ice else "arcane",false)
             var near := _nearest_enemy(a.pos)
+            # A disconnected item is a real invention, not an inert attachment.
+            if recipe.ids.size()==1 and _activate_solo(a,near):
+                continue
+            # Adding a rock to any machine adds its impact, not merely a damage stat.
+            if recipe.mods.heavy and near>=0:
+                _summon_rock(enemies[near].pos, 19.0+recipe.ids.size()*3.0,
+                    "fire" if recipe.mods.fire else "ice" if recipe.mods.ice else "physical")
             if recipe.mods.bees:
                 _emit_bees(a.pos, recipe)
             if recipe.mods.fire:
@@ -610,6 +627,74 @@ func _update_actors(dt: float) -> void:
                     enemies[near].pos += knock * 27.0
                     _spark(enemies[near].pos, color_gold, 8)
 
+
+func _activate_solo(a: Dictionary, nearest: int) -> bool:
+    var id: String = str(a.recipe.ids[0])
+    match id:
+        "hammer":
+            a.cooldown = 2.85
+            if nearest >= 0:
+                _summon_rock(enemies[nearest].pos, 44.0,"physical")
+            else:
+                _impact(a.pos,"physical",true)
+            return true
+        "torch":
+            a.cooldown = 1.65
+            _make_hazard(a.pos,"fire",22.0)
+            if nearest >= 0:
+                _projectile(a.pos,enemies[nearest].pos,"fire",24.0)
+            _spark(a.pos,color_fire,11)
+            return true
+        "boots":
+            a.cooldown = 3.0
+            speed_boost = maxf(speed_boost,2.75)
+            _spark(hero_position,Color("#adcefc"),10)
+            return true
+        "coffee":
+            a.cooldown = 3.0
+            coffee_boost = maxf(coffee_boost,2.7)
+            _spark(hero_position,Color("#e2a978"),10)
+            return true
+        "board":
+            a.cooldown = 2.7
+            hero_ward = maxf(hero_ward,2.4)
+            _impact(hero_position,"physical",true)
+            for i in range(enemies.size()-1,-1,-1):
+                var away: Vector2 = enemies[i].pos-hero_position
+                if away.length() < 100.0 and not bool(enemies[i].boss):
+                    enemies[i].knock += away.normalized()*55.0
+            return true
+    return false
+
+func _summon_rock(destination: Vector2, power: float, kind: String = "physical") -> void:
+    if rockfalls.size()>=MAX_ROCKFALLS:
+        return
+    var land: Vector2 = Vector2(clampf(destination.x,ARENA.position.x+36.0,ARENA.end.x-36.0),
+        clampf(destination.y,ARENA.position.y+38.0,ARENA.end.y-25.0))
+    rockfalls.append({"pos":land,"age":0.0,"delay":0.48,"damage":power,"kind":kind,"radius":58.0})
+
+func _update_rockfalls(dt: float) -> void:
+    for i in range(rockfalls.size()-1,-1,-1):
+        var r: Dictionary = rockfalls[i]
+        r.age = float(r.age)+dt
+        if float(r.age)<float(r.delay):
+            continue
+        var center: Vector2 = r.pos
+        _impact(center,str(r.kind),true)
+        _spark(center,color_fire if r.kind=="fire" else color_ice if r.kind=="ice" else color_gold,17)
+        if r.kind=="fire":
+            _make_hazard(center,"fire",31.0)
+        elif r.kind=="ice":
+            _make_hazard(center,"ice",30.0)
+        for j in range(enemies.size()-1,-1,-1):
+            if j>=enemies.size():
+                continue
+            var away: Vector2 = enemies[j].pos-center
+            if away.length()<=float(r.radius):
+                _hurt_enemy(j,float(r.damage)*(1.0-away.length()/150.0),str(r.kind))
+                if j<enemies.size() and not bool(enemies[j].boss):
+                    enemies[j].knock += (away.normalized() if away.length()>1.0 else Vector2.RIGHT)*88.0
+        rockfalls.remove_at(i)
 
 func _electric_burst(origin: Vector2, power: float, maximum: int) -> void:
     var used: Dictionary = {}
