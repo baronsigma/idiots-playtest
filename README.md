@@ -1,10 +1,10 @@
-# IDIOTS! — Godot v0.0.8-alpha.3 parity branch
+# IDIOTS! — Godot v0.0.8-alpha.4 engineering parity candidate
 
 > Draft migration work. **Godot runtime and browser export are not yet verified.** Do not treat this branch as a stable playable release.
 
 The primary reference is the original **continuous HTML alpha.6.1** (in `reference/`), not the discarded five-shift or Test Lab experiments.
 
-This branch retains the Godot v0.0.8-alpha.2 battle and procedural combination grammar while beginning to restore the HTML game's content loop: timed part discoveries, two in-run signature weapon evolutions, saved Renown for capped HP/gold preparation, and basic specialist enemies. Core six-slot connections and live inventions remain active.
+This branch retains the continuous Godot combat loop while rebuilding the HTML content and engineering systems: timed discoveries, two weapon evolutions, Renown starters, specialist enemies, **20 tagged parts**, multiple named inventions and distinct lightning, ice, grease, undead, magnetic and healing mechanics. Animated bees, saucers, expanding hazards and a bounded one-generation fire/poison/spore spread are retained. Core six-slot connections and live inventions remain active.
 
 Read [MIGRATION_PARITY.md](MIGRATION_PARITY.md) for exact feature gaps and migration order. This is not full parity yet.
 
@@ -12,7 +12,7 @@ Read [MIGRATION_PARITY.md](MIGRATION_PARITY.md) for exact feature gaps and migra
 
 Open `project.godot` in Godot 4.7.2 and press F5. Use the same keyboard controls as alpha.2: Space pauses, F uses a field kit, F11 toggles fullscreen. Parts unlock through mid-run discovery prompts; after choosing, click their inventory tiles to place them. Renown upgrades appear on the character-select screen after returning from a run.
 
-Automated checks: `godot --headless --path . --script res://tests/test_grammar.gd` and `godot --headless --path . --script res://tests/test_parity.gd`. A GitHub Actions PR workflow attempts import, both tests, and a short scene smoke test. Until these run successfully, the build is **unverified**.
+Automated checks: `godot --headless --path . --script res://tests/test_grammar.gd`, `godot --headless --path . --script res://tests/test_parity.gd`, and `godot --headless --path . --script res://tests/test_engineering.gd`. PR CI also smoke-tests the scene, builds the Web export, and attaches a Web artifact. **A successful headless test is not a substitute for browser playtesting**; an exported Godot app must be served by HTTP with its HTML/WASM/PCK siblings.
 
 ---
 
