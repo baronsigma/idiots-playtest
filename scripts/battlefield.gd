@@ -419,6 +419,7 @@ func _update_actors(dt: float) -> void:
                 _make_hazard(a.pos, "ice", 31.0)
             if recipe.mods.electric:
                 _electric_burst(a.pos, 10.0 + recipe.ids.size() * 1.5, 3)
+                near = _nearest_enemy(a.pos)
             if recipe.mods.bones:
                 _raise_skeleton(a.pos)
             if recipe.mods.healing and hp < max_hp:
@@ -506,7 +507,7 @@ func _update_projectiles(dt: float) -> void:
                 impact = j
                 break
         if impact>=0:
-            _hurt_enemy(impact,float(p.damage),"fire" if p.kind=="fire" else "poison" if p.kind=="poison" else "physical")
+            _hurt_enemy(impact,float(p.damage),"fire" if p.kind=="fire" else "poison" if p.kind=="poison" else "ice" if p.kind=="ice" else "physical")
             if p.kind=="saucer" and int(p.hits)<2 and enemies.size()>0:
                 p.hits += 1
                 p.life = 0.7
@@ -538,14 +539,31 @@ func _update_hazards(dt: float) -> void:
         var h: Dictionary = hazards[i]
         h.age += dt
         h.damage_timer -= dt
+        if h.kind == "grease":
+            for other in hazards:
+                if other == h or other.kind != "fire":
+                    continue
+                if h.pos.distance_to(other.pos) < float(h.radius) + float(other.radius) * 0.72:
+                    h.kind = "fire"
+                    h.radius = minf(64.0, float(h.radius) + 11.0)
+                    h.life = maxf(float(h.life), float(h.age) + 3.0)
+                    _spark(h.pos, color_fire, 10)
+                    break
         if h.damage_timer<=0.0:
             h.damage_timer = 0.6
-            var radius := float(h.radius)*(1.0+minf(0.6,float(h.age)*0.13))
+            var radius: float = float(h.radius)*(1.0+minf(0.6,float(h.age)*0.13))
             for j in range(enemies.size()-1,-1,-1):
-                if j>=enemies.size():continue
+                if j >= enemies.size():
+                    continue
                 if h.pos.distance_to(enemies[j].pos)<radius:
-                    _hurt_enemy(j,6.0,h.kind if h.kind in ["fire","poison"] else "poison")
-        if h.age>=h.life:hazards.remove_at(i)
+                    if h.kind == "grease":
+                        enemies[j].stun = maxf(float(enemies[j].stun),0.16)
+                    elif h.kind == "ice":
+                        _hurt_enemy(j,2.0,"ice")
+                    else:
+                        _hurt_enemy(j,6.0,h.kind if h.kind in ["fire","poison"] else "poison")
+        if h.age >= h.life:
+            hazards.remove_at(i)
 
 func _draw_sprite(id: String, at: Vector2, size: float = 38.0, alpha: float = 1.0) -> void:
     if not sprites.has(id):return
@@ -572,10 +590,16 @@ func _draw() -> void:
     for h in hazards:
         var ratio: float = clampf(float(h.age)/float(h.life),0.0,1.0)
         var rad: float = maxf(1.0,float(h.radius)*(0.8+minf(0.8,ratio*1.7)))
-        var col := color_fire if h.kind=="fire" else color_poison if h.kind=="poison" else Color("#bd91df")
-        draw_circle(h.pos,rad,Color(col.r,col.g,col.b,0.22*(1.0-ratio)))
-        draw_arc(h.pos,rad,0.0,TAU,25,Color(col.r,col.g,col.b,0.65*(1.0-ratio)),2.0)
+        var col: Color = color_fire if h.kind=="fire" else color_poison if h.kind=="poison" else color_ice if h.kind=="ice" else Color("#b9a16d") if h.kind=="grease" else Color("#bd91df")
+        # Multi-layer growing fields read as physical surfaces, not flat flashes.
+        draw_circle(h.pos, rad, Color(col.r,col.g,col.b,0.12*(1.0-ratio)))
+        draw_circle(h.pos, rad*0.70, Color(col.r,col.g,col.b,0.24*(1.0-ratio)))
+        draw_arc(h.pos, rad, 0.0,TAU,25,Color(col.r,col.g,col.b,0.74*(1.0-ratio)),2.0)
+        draw_arc(h.pos, rad*(0.48+0.10*sin(float(h.age)*7.0)),0.0,TAU,18,Color(col.r,col.g,col.b,0.46*(1.0-ratio)),1.0)
         if h.kind=="spores":_draw_sprite("mushroom",h.pos,32.0)
+        if h.kind=="ice":
+            draw_line(h.pos+Vector2(-rad*0.4,0),h.pos+Vector2(rad*0.4,0),Color("#d8f7ff"),2.0)
+            draw_line(h.pos+Vector2(0,-rad*0.35),h.pos+Vector2(0,rad*0.35),Color("#d8f7ff"),2.0)
     for e in enemies:
         _draw_sprite("taxman" if e.tax else "goblin" if e.archer else "rat",e.pos,53.0 if e.boss else 41.0)
         if e.archer:
@@ -602,13 +626,32 @@ func _draw() -> void:
             draw_circle(a.pos+Vector2(10,8),5.0,Color(color_poison.r,color_poison.g,color_poison.b,0.65))
         if recipe.mods.bees:
             _draw_sprite("hive",a.pos+Vector2(17,-14),21.0)
+        if recipe.mods.electric:
+            draw_arc(a.pos,27.0,0.15+float(a.phase),3.4+float(a.phase),16,Color("#78d7ff"),2.0)
+        if recipe.mods.ice:
+            draw_arc(a.pos,24.0,0.0,TAU,17,Color("#b7f7ff",0.65),1.3)
+        if recipe.mods.magnet:
+            draw_arc(a.pos,35.0+sin(float(a.phase)*2.0)*3.0,0.0,TAU,22,Color("#c9a8ff",0.52),1.5)
         if recipe.ids.has("torch"):
             _draw_sprite("torch",a.pos+Vector2(-18,-12),20.0)
         draw_string(ThemeDB.fallback_font,a.pos+Vector2(-37,34),str(recipe.title).substr(0,20),HORIZONTAL_ALIGNMENT_LEFT,-1,10,Color("#f6e1af"))
+    for unit in skeletons:
+        var skeleton_pos: Vector2 = unit.pos
+        draw_circle(skeleton_pos + Vector2(0,10),12.0,Color("#a9dfb6",0.18))
+        _draw_sprite("ghost",skeleton_pos,31.0,0.86)
+        draw_arc(skeleton_pos,12.0,0.0,TAU,13,Color("#a1d5c2",0.58),1.0)
     for b in bees:
         _draw_sprite("bee",b.pos+Vector2(0,sin(float(b.phase))*3.0),15.0)
+    for arc in lightning_arcs:
+        var power: float = clampf(float(arc.life)/float(arc.max_life),0.0,1.0)
+        var a_pos: Vector2 = arc["from"]
+        var b_pos: Vector2 = arc["to"]
+        var center: Vector2 = (a_pos+b_pos)*0.5+Vector2(0,-6.0*power)
+        draw_line(a_pos,center,Color("#7ecfff",power),4.0)
+        draw_line(center,b_pos,Color("#a5eaff",power),3.0)
+        draw_line(a_pos,b_pos,Color("#f3fbff",power*0.60),1.0)
     for p in projectiles:
-        var col := color_fire if p.kind=="fire" else color_poison if p.kind=="poison" else color_ice if p.kind=="arcane" else color_gold
+        var col := color_fire if p.kind=="fire" else color_poison if p.kind=="poison" else color_ice if p.kind in ["arcane","ice"] else Color("#c9a8ff") if p.kind=="echo" else color_gold
         draw_line(p.pos-p.vel.normalized()*10.0,p.pos,col,3.5)
         _draw_sprite("saucer" if p.kind=="saucer" else "shot",p.pos,22.0 if p.kind=="saucer" else 14.0)
     for s in sparks:
