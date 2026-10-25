@@ -315,7 +315,7 @@ func _update_enemies(dt: float) -> void:
         if actors.size()>0 and rng.randf()<0.18*dt:
             goal = actors[rng.randi_range(0,actors.size()-1)].pos
         var direction: Vector2 = (goal-e.pos).normalized()
-        var distance := e.pos.distance_to(hero_position)
+        var distance: float = e.pos.distance_to(hero_position)
         if e.archer:
             if distance < 120.0:
                 e.pos -= direction * float(e.speed) * dt
