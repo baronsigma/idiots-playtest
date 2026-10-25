@@ -691,9 +691,9 @@ func _update_rockfalls(dt: float) -> void:
                 continue
             var away: Vector2 = enemies[j].pos-center
             if away.length()<=float(r.radius):
-                _hurt_enemy(j,float(r.damage)*(1.0-away.length()/150.0),str(r.kind))
-                if j<enemies.size() and not bool(enemies[j].boss):
+                if not bool(enemies[j].boss):
                     enemies[j].knock += (away.normalized() if away.length()>1.0 else Vector2.RIGHT)*88.0
+                _hurt_enemy(j,float(r.damage)*(1.0-away.length()/150.0),str(r.kind))
         rockfalls.remove_at(i)
 
 func _electric_burst(origin: Vector2, power: float, maximum: int) -> void:
