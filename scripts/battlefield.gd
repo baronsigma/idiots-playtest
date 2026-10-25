@@ -3,13 +3,17 @@ extends Node2D
 signal updated
 signal finished(victory: bool)
 signal notice(message: String)
+signal discovery_due(tier: int)
+signal evolution_due(tier: int)
 
 const ARENA := Rect2(18.0, 95.0, 799.0, 525.0)
 const MAX_ENEMIES := 36
 const MAX_BEES := 44
 const MAX_HAZARDS := 22
 const MAX_PROJECTILES := 70
-const TOTAL_TIME := 158.0
+const TOTAL_TIME := 390.0
+const DISCOVERY_TIMES := [32.0, 75.0, 130.0, 192.0, 255.0, 324.0]
+const EVOLUTION_TIMES := [98.0, 294.0]
 const HEROES := {
     "jimothy": {"name":"Jimothy", "hp":130.0, "speed":103.0, "range":54.0, "damage":15.0},
     "kram": {"name":"Kram", "hp":103.0, "speed":112.0, "range":214.0, "damage":12.0},
@@ -40,6 +44,13 @@ var sparks: Array = []
 var spawn_clock := 0.0
 var notice_clock := 0.0
 var boss_spawned := false
+var discovery_index := 0
+var evolution_index := 0
+var weapon_level := 0
+var weapon_wide := 0
+var weapon_guard := 0
+var weapon_split := 0
+var weapon_heated := 0
 var color_fire := Color("#fd8a50")
 var color_poison := Color("#7de06f")
 var color_ice := Color("#93e2e5")
@@ -51,11 +62,11 @@ func _ready() -> void:
         sprites[key] = load("res://assets/sprites/" + key + ".png")
     queue_redraw()
 
-func start(hero_id: String) -> void:
+func start(hero_id: String, hp_boost: int = 0, gold_boost: int = 0) -> void:
     hero_type = hero_id if HEROES.has(hero_id) else "jimothy"
-    hp = float(HEROES[hero_type].hp)
+    hp = float(HEROES[hero_type].hp) + hp_boost
     max_hp = hp
-    gold = 28
+    gold = 28 + gold_boost
     concern = 0.0
     kills = 0
     clock = 0.0
@@ -71,6 +82,13 @@ func start(hero_id: String) -> void:
     actors.clear()
     spawn_clock = 0.0
     boss_spawned = false
+    discovery_index = 0
+    evolution_index = 0
+    weapon_level = 0
+    weapon_wide = 0
+    weapon_guard = 0
+    weapon_split = 0
+    weapon_heated = 0
     active = true
     paused = false
     ended = false
@@ -97,6 +115,18 @@ func set_inventions(recipes: Array) -> void:
     actors = next
     updated.emit()
 
+func apply_weapon_upgrade(kind: String) -> void:
+    if not active or weapon_level >= 2:
+        return
+    weapon_level += 1
+    match kind:
+        "wide": weapon_wide += 1
+        "guard": weapon_guard += 1
+        "split": weapon_split += 1
+        "heated": weapon_heated += 1
+    notice.emit("Weapon evolution %d: %s. This seems legally questionable." % [weapon_level, kind.to_upper()])
+    updated.emit()
+
 func use_field_kit() -> void:
     if not active or ended or kits <= 0 or hp >= max_hp - 1.0:
         return
@@ -116,14 +146,16 @@ func _spawn_enemy(elite: bool, force_boss: bool = false) -> void:
     if side == 2: pos = Vector2(rng.randf_range(ARENA.position.x+20,ARENA.end.x-20),ARENA.position.y+18)
     if side == 3: pos = Vector2(rng.randf_range(ARENA.position.x+20,ARENA.end.x-20),ARENA.end.y-18)
     var boss := force_boss
-    var tax := boss or elite or (clock>48.0 and rng.randf()<0.17 + concern*0.0014)
-    var toughness := 1.0 + clock / 190.0
+    var tax := boss or elite or (clock>55.0 and rng.randf()<0.10 + concern*0.0012)
+    var archer := not boss and clock>95.0 and concern>20.0 and rng.randf()<0.17
+    var sprinter := not boss and clock>60.0 and rng.randf()<0.13
+    var toughness := 1.0 + clock / 450.0
     var base_hp := 85.0 if tax else 37.0
     var base_dmg := 12.0 if tax else 5.5
     if boss:
         base_hp = 1250.0
         base_dmg = 24.0
-    enemies.append({"pos":pos, "hp":base_hp*toughness, "max_hp":base_hp*toughness, "damage":base_dmg, "speed":(37.0 if tax else 58.0)+clock*0.04, "cooldown":rng.randf_range(0.0,0.9), "tax":tax, "boss":boss, "burn":0.0, "poison":0.0, "stun":0.0, "flash":0.0})
+    enemies.append({"pos":pos, "hp":base_hp*toughness, "max_hp":base_hp*toughness, "damage":base_dmg, "speed":(37.0 if tax else 58.0)+(35.0 if sprinter else 0.0)+clock*0.018, "cooldown":rng.randf_range(0.0,0.9), "tax":tax, "boss":boss, "archer":archer, "sprinter":sprinter, "burn":0.0, "poison":0.0, "stun":0.0, "flash":0.0})
     if boss:
         notice.emit("THE MAYOR HAS REQUESTED YOUR IMMEDIATE DISCONTINUATION.")
 
@@ -194,22 +226,32 @@ func _process(delta: float) -> void:
     _update_projectiles(dt)
     _update_bees(dt)
     _update_hazards(dt)
+    if discovery_index < DISCOVERY_TIMES.size() and clock >= float(DISCOVERY_TIMES[discovery_index]):
+        var due := discovery_index
+        discovery_index += 1
+        paused = true
+        discovery_due.emit(due)
+    elif evolution_index < EVOLUTION_TIMES.size() and clock >= float(EVOLUTION_TIMES[evolution_index]):
+        var tier := evolution_index + 1
+        evolution_index += 1
+        paused = true
+        evolution_due.emit(tier)
     for i in range(sparks.size()-1,-1,-1):
         var s: Dictionary = sparks[i]
         s.life = float(s.life)-dt
         s.pos += s.vel * dt
         if s.life<=0.0:sparks.remove_at(i)
-    if not boss_spawned and clock>TOTAL_TIME-17.0:
+    if not boss_spawned and clock>TOTAL_TIME-28.0:
         boss_spawned = true
         _spawn_enemy(true,true)
     if clock<TOTAL_TIME-12.0:
         spawn_clock -= dt
         if spawn_clock<=0.0:
-            spawn_clock = maxf(0.30, 2.0 - clock*0.006 - concern*0.005)
+            spawn_clock = maxf(0.62, 2.3 - clock*0.003 - concern*0.006)
             _spawn_enemy(rng.randf() < 0.06 + concern*0.003)
             if concern>68.0 and rng.randf()<0.16:
                 _spawn_enemy(true)
-    if clock>TOTAL_TIME+38.0 and boss_spawned and not ended:
+    if clock>TOTAL_TIME+46.0 and boss_spawned and not ended:
         ended = true
         active = false
         finished.emit(false)
@@ -236,12 +278,16 @@ func _update_hero(dt: float) -> void:
     hero_position = Vector2(clampf(hero_position.x, ARENA.position.x+20.0,ARENA.end.x-20.0), clampf(hero_position.y,ARENA.position.y+20.0,ARENA.end.y-18.0))
     if hero_cooldown<=0.0 and dist<ideal_range+12.0:
         hero_cooldown = 0.78 if hero_type!="kram" else 0.94
-        if hero_type=="kram":
-            _projectile(hero_position,e.pos,"arcane",float(HEROES[hero_type].damage))
+        var damage := float(HEROES[hero_type].damage) + float(weapon_level) * 5.0
+        var kind := "fire" if weapon_heated > 0 else "physical"
+        if hero_type == "kram":
+            _projectile(hero_position,e.pos,"fire" if weapon_heated > 0 else "arcane",damage)
+            for n in range(weapon_split):
+                _projectile(hero_position,e.pos + Vector2(28.0 * (1 if n % 2 == 0 else -1), -29.0), "arcane",damage * 0.55)
         else:
             for j in range(enemies.size()-1,-1,-1):
-                if hero_position.distance_to(enemies[j].pos)<68.0:
-                    _hurt_enemy(j,float(HEROES[hero_type].damage)*(0.82 if j!=nearest else 1.0))
+                if hero_position.distance_to(enemies[j].pos) < 68.0 + float(weapon_wide) * 21.0:
+                    _hurt_enemy(j,damage*(0.82 if j!=nearest else 1.0),kind)
             _spark(e.pos,color_gold,4)
 
 func _update_enemies(dt: float) -> void:
@@ -266,17 +312,34 @@ func _update_enemies(dt: float) -> void:
         if actors.size()>0 and rng.randf()<0.18*dt:
             goal = actors[rng.randi_range(0,actors.size()-1)].pos
         var direction: Vector2 = (goal-e.pos).normalized()
-        e.pos += direction * float(e.speed) * dt
-        if e.pos.distance_to(hero_position)<24.0 and e.cooldown<=0.0:
-            e.cooldown = 1.1 if e.tax else 1.45
-            var armor_factor := 0.86 if hero_type=="bog" else 1.0
-            hp = maxf(0.0,hp-float(e.damage)*armor_factor)
-            _spark(hero_position,Color("#e76d70"),6)
-            updated.emit()
-            if hp<=0.0:
-                ended = true
-                active = false
-                finished.emit(false)
+        var distance := e.pos.distance_to(hero_position)
+        if e.archer:
+            if distance < 120.0:
+                e.pos -= direction * float(e.speed) * dt
+            elif distance > 205.0:
+                e.pos += direction * float(e.speed) * dt
+            if distance < 250.0 and e.cooldown <= 0.0:
+                e.cooldown = 2.6
+                _damage_hero(float(e.damage) * 0.72)
+                _spark(hero_position, Color("#d17d69"), 4)
+        else:
+            e.pos += direction * float(e.speed) * dt
+            if distance < 24.0 and e.cooldown <= 0.0:
+                e.cooldown = 1.1 if e.tax else 1.45
+                _damage_hero(float(e.damage))
+
+func _damage_hero(raw_damage: float) -> void:
+    if ended:
+        return
+    var armor_factor := 0.86 if hero_type=="bog" else 1.0
+    armor_factor *= maxf(0.68, 1.0 - 0.12 * float(weapon_guard))
+    hp = maxf(0.0, hp - raw_damage * armor_factor)
+    _spark(hero_position, Color("#e76d70"), 5)
+    updated.emit()
+    if hp <= 0.0:
+        ended = true
+        active = false
+        finished.emit(false)
 
 func _update_actors(dt: float) -> void:
     for a in actors:
@@ -408,7 +471,11 @@ func _draw() -> void:
         draw_arc(h.pos,rad,0.0,TAU,25,Color(col.r,col.g,col.b,0.65*(1.0-ratio)),2.0)
         if h.kind=="spores":_draw_sprite("mushroom",h.pos,32.0)
     for e in enemies:
-        _draw_sprite("taxman" if e.tax else "rat",e.pos,53.0 if e.boss else 41.0)
+        _draw_sprite("taxman" if e.tax else "goblin" if e.archer else "rat",e.pos,53.0 if e.boss else 41.0)
+        if e.archer:
+            draw_line(e.pos + Vector2(-12, -28), e.pos + Vector2(12, -28), Color("#f8c06a"), 2.0)
+        if e.sprinter:
+            draw_arc(e.pos, 22.0, 0.0, TAU, 16, Color("#f0c88a", 0.55), 1.5)
         var w := 46.0 if e.boss else 31.0
         draw_rect(Rect2(e.pos+Vector2(-w*0.5,-32),Vector2(w,4)),Color("#1b2027"))
         draw_rect(Rect2(e.pos+Vector2(-w*0.5,-32),Vector2(w*clampf(float(e.hp)/float(e.max_hp),0.0,1.0),4)),Color("#d36a65"))
@@ -448,10 +515,10 @@ func draw_ellipse_shadow(pos: Vector2, radius: float) -> void:
     draw_circle(pos+Vector2(0,15),radius,Color(0.02,0.03,0.04,0.30))
 
 func stage() -> String:
-    if clock<55.0:return "OUTSKIRTS"
-    if clock<115.0:return "GOBLIN ROAD"
-    if clock<TOTAL_TIME-17.0:return "TOLL APPROACH"
+    if clock<TOTAL_TIME*0.34:return "OUTSKIRTS"
+    if clock<TOTAL_TIME*0.69:return "GOBLIN ROAD"
+    if clock<TOTAL_TIME-28.0:return "TOLL APPROACH"
     return "THE MAYOR"
 
 func report() -> Dictionary:
-    return {"hp":hp, "max_hp":max_hp, "gold":gold, "kills":kills, "concern":concern, "time":clock, "stage":stage(), "kits":kits, "enemies":enemies.size(), "actors":actors.size()}
+    return {"hp":hp, "max_hp":max_hp, "gold":gold, "kills":kills, "concern":concern, "time":clock, "stage":stage(), "kits":kits, "enemies":enemies.size(), "actors":actors.size(), "weapon_level":weapon_level, "discovered":discovery_index}
