@@ -13,6 +13,7 @@ jobs:
         with:
           version: 4.7.2
           use-dotnet: false
+          include-templates: true
       - name: Import project and parse scripts
         run: godot --headless --path . --editor --import --quit
       - name: Test procedural grammar
@@ -29,3 +30,17 @@ jobs:
           if grep -E '(SCRIPT ERROR:|Parse Error:|Failed to load script|Invalid access to property|Invalid call\.)' godot.log; then
             exit 1
           fi
+
+      - name: Export browser playtest bundle
+        run: |
+          mkdir -p dist
+          godot --headless --path . --export-release Web dist/index.html
+          test -s dist/index.html
+          test -n "$(find dist -maxdepth 1 -name '*.wasm' -print -quit)"
+          test -n "$(find dist -maxdepth 1 -name '*.pck' -print -quit)"
+      - name: Attach playable Web build to CI run
+        uses: actions/upload-artifact@v4
+        with:
+          name: idiots-godot-alpha4-web
+          path: dist/
+          if-no-files-found: error
