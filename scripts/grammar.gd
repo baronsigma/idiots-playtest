@@ -32,6 +32,29 @@ const SPECIAL := {
     "battery|hive": "The Sting Grid"
 }
 
+const SOLO_EFFECTS := {
+    "goblin": "Throws bottles and irritates the nearest enemy.",
+    "chicken": "Wanders, pecks enemies and occasionally launches eggs.",
+    "torch": "Burns nearby foes with a flame bolt and a persistent fire patch.",
+    "hive": "Dispatches independent seeking bees.",
+    "saucer": "Fires ricocheting metal discs.",
+    "ghost": "Haunts targets with spectral blasts.",
+    "venom": "Leaks persistent toxic puddles.",
+    "mushroom": "Grows spreading clouds of spores.",
+    "board": "Raises a brief shield and knocks nearby enemies back.",
+    "battery": "Chains lightning between nearby targets.",
+    "grease": "Spills slick patches that can catch fire.",
+    "bones": "Raises temporary skeleton interns.",
+    "paper": "Stuns foes and occasionally collects fines.",
+    "boots": "Gives the hero a temporary speed boost.",
+    "hammer": "Calls down a telegraphed rockfall with area damage and knockback.",
+    "coffee": "Temporarily increases the hero's attack speed.",
+    "bandage": "Periodically heals a little damage.",
+    "magnet": "Pulls enemies into a dangerous cluster.",
+    "mirror": "Fires a weaker duplicate of its attack.",
+    "ice": "Freezes nearby enemies and leaves icy fields."
+}
+
 var parts: Dictionary = {}
 
 func _init() -> void:
@@ -149,6 +172,9 @@ func resolve(input_ids: Array) -> Dictionary:
         title = prefix + parts[host]["name"] + " Apparatus"
         if rider != "":
             title = prefix + parts[rider]["name"] + " on " + parts[host]["name"]
+    if ids.size() == 1:
+        title = str(parts[host]["name"])
+    var solo_effect: String = str(SOLO_EFFECTS.get(ids[0], "")) if ids.size() == 1 else ""
     var weakness := "Exposed rider / awkward steering" if rider != "" else "Short reach and fragile attachments"
     if mods.bees: weakness = "Fragile swarms; limited lifetime"
     elif mods.grease and mods.fire: weakness = "Flammable accidents; unpredictable area"
@@ -156,4 +182,4 @@ func resolve(input_ids: Array) -> Dictionary:
     elif mods.bones: weakness = "Interns have short contracts"
     elif mods.fire: weakness = "Overheats; attracts attention"
     elif mods.poison: weakness = "Slow damage, decaying pools"
-    return {"key":key, "ids":ids, "title":title, "host":host, "rider":rider, "mount":mount, "mode":mode, "mods":mods, "sidekick":sidekick, "rules":rules, "weakness":weakness}
+    return {"key":key, "ids":ids, "title":title, "host":host, "rider":rider, "mount":mount, "mode":mode, "mods":mods, "sidekick":sidekick, "rules":rules, "weakness":weakness, "solo_effect":solo_effect}

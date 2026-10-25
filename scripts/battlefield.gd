@@ -7,7 +7,10 @@ signal discovery_due(tier: int)
 signal evolution_due(tier: int)
 
 const ARENA := Rect2(18.0, 95.0, 799.0, 525.0)
-const MAX_ENEMIES := 36
+const MAX_ENEMIES := 48
+const MAX_HOSTILE_SHOTS := 22
+const MAX_HIT_FLASHES := 45
+const MAX_ROCKFALLS := 12
 const MAX_BEES := 44
 const MAX_SKELETONS := 12
 const MAX_ARCS := 48
@@ -17,9 +20,9 @@ const TOTAL_TIME := 390.0
 const DISCOVERY_TIMES := [32.0, 75.0, 130.0, 192.0, 255.0, 324.0]
 const EVOLUTION_TIMES := [98.0, 294.0]
 const HEROES := {
-    "jimothy": {"name":"Jimothy", "hp":130.0, "speed":103.0, "range":54.0, "damage":15.0},
-    "kram": {"name":"Kram", "hp":103.0, "speed":112.0, "range":214.0, "damage":12.0},
-    "bog": {"name":"Bog", "hp":163.0, "speed":96.0, "range":57.0, "damage":17.0}
+    "jimothy": {"name":"Jimothy", "hp":226.0, "speed":115.0, "range":64.0, "damage":24.0},
+    "kram": {"name":"Kram", "hp":179.0, "speed":107.0, "range":191.0, "damage":21.0},
+    "bog": {"name":"Bog", "hp":275.0, "speed":105.0, "range":68.0, "damage":28.0}
 }
 var sprites: Dictionary = {}
 var rng := RandomNumberGenerator.new()
@@ -46,6 +49,25 @@ var lightning_arcs: Array = []
 var hero_ward := 0.0
 var hazards: Array = []
 var sparks: Array = []
+var hostile_shots: Array = []
+var attack_waves: Array = []
+var impact_rings: Array = []
+var rockfalls: Array = []
+var speed_boost := 0.0
+var coffee_boost := 0.0
+var hero_flash := 0.0
+var hero_direction := Vector2.RIGHT
+var hero_stride := 0.0
+var hero_attack_pose := 0.0
+var enemy_spawn_total := 0
+var hero_attack_total := 0
+var render_frame_count := 0
+var hero_damage_taken := 0.0
+var hostile_arrow_total := 0
+var max_enemies_observed := 0
+var screen_kick := 0.0
+var encounter_banner := ""
+var encounter_banner_time := 0.0
 var spawn_clock := 0.0
 var notice_clock := 0.0
 var boss_spawned := false
@@ -87,6 +109,24 @@ func start(hero_id: String, hp_boost: int = 0, gold_boost: int = 0) -> void:
     hero_ward = 0.0
     hazards.clear()
     sparks.clear()
+    hostile_shots.clear()
+    attack_waves.clear()
+    impact_rings.clear()
+    rockfalls.clear()
+    speed_boost = 0.0
+    coffee_boost = 0.0
+    hero_flash = 0.0
+    hero_stride = 0.0
+    hero_attack_pose = 0.0
+    hero_direction = Vector2.RIGHT
+    enemy_spawn_total = 0
+    hero_attack_total = 0
+    hero_damage_taken = 0.0
+    hostile_arrow_total = 0
+    max_enemies_observed = 0
+    screen_kick = 0.0
+    encounter_banner = "THE VILLAGE HAS NOTICED"
+    encounter_banner_time = 3.0
     actors.clear()
     spawn_clock = 0.0
     boss_spawned = false
@@ -100,7 +140,7 @@ func start(hero_id: String, hp_boost: int = 0, gold_boost: int = 0) -> void:
     active = true
     paused = false
     ended = false
-    for i in range(5):
+    for i in range(9):
         _spawn_enemy(false)
     notice.emit("The village has lodged a formal complaint.")
     updated.emit()
@@ -119,7 +159,7 @@ func set_inventions(recipes: Array) -> void:
             maintained["recipe"] = recipe
             next.append(maintained)
         else:
-            next.append({"key":key, "recipe":recipe, "pos":hero_position + Vector2(rng.randf_range(-90.0,90.0),rng.randf_range(-64.0,64.0)), "target":Vector2.ZERO, "cooldown":rng.randf_range(0.7,1.6), "wander":0.0, "phase":rng.randf_range(0.0,9.0), "damage":0.0, "casts":0})
+            next.append({"key":key, "recipe":recipe, "pos":hero_position + Vector2(rng.randf_range(-90.0,90.0),rng.randf_range(-64.0,64.0)), "target":Vector2.ZERO, "cooldown":rng.randf_range(0.20,0.48), "wander":0.0, "phase":rng.randf_range(0.0,9.0), "damage":0.0, "casts":0, "trail_clock":0.0,"peck_clock":0.3,"pulse":0.0})
     actors = next
     updated.emit()
 
@@ -154,16 +194,22 @@ func _spawn_enemy(elite: bool, force_boss: bool = false) -> void:
     if side == 2: pos = Vector2(rng.randf_range(ARENA.position.x+20,ARENA.end.x-20),ARENA.position.y+18)
     if side == 3: pos = Vector2(rng.randf_range(ARENA.position.x+20,ARENA.end.x-20),ARENA.end.y-18)
     var boss := force_boss
-    var tax := boss or elite or (clock>55.0 and rng.randf()<0.10 + concern*0.0012)
-    var archer := not boss and clock>95.0 and concern>20.0 and rng.randf()<0.17
-    var sprinter := not boss and clock>60.0 and rng.randf()<0.13
-    var toughness := 1.0 + clock / 450.0
-    var base_hp := 85.0 if tax else 37.0
-    var base_dmg := 12.0 if tax else 5.5
+    var tax: bool = boss or elite or (clock>35.0 and rng.randf()<0.065 + concern*0.001)
+    var archer: bool = not boss and clock>44.0 and rng.randf()<0.13 + concern*0.0006
+    var sprinter: bool = not boss and clock>22.0 and rng.randf()<0.16
+    var toughness := 1.0 + clock / 400.0
+    var base_hp := 91.0 if tax else (29.0 if sprinter else 47.0 if archer else 35.0)
+    var base_dmg := 13.5 if tax else (6.0 if sprinter else 7.2 if archer else 6.1)
     if boss:
         base_hp = 1250.0
         base_dmg = 24.0
-    enemies.append({"pos":pos, "hp":base_hp*toughness, "max_hp":base_hp*toughness, "damage":base_dmg, "speed":(37.0 if tax else 58.0)+(35.0 if sprinter else 0.0)+clock*0.018, "cooldown":rng.randf_range(0.0,0.9), "tax":tax, "boss":boss, "archer":archer, "sprinter":sprinter, "burn":0.0, "poison":0.0, "stun":0.0, "flash":0.0})
+    enemies.append({"pos":pos, "hp":base_hp*toughness, "max_hp":base_hp*toughness, "damage":base_dmg,
+        "speed":(45.0 if tax else 53.0 if archer else 94.0 if sprinter else 65.0)+clock*0.018,
+        "cooldown":rng.randf_range(0.5,1.5),"tax":tax,"boss":boss,"archer":archer,"sprinter":sprinter,
+        "burn":0.0,"poison":0.0,"stun":0.0,"flash":0.0,"knock":Vector2.ZERO,"stride":rng.randf_range(0.0,6.0),
+        "kind":"boss" if boss else "brute" if tax else "archer" if archer else "sprinter" if sprinter else "rat" if rng.randf()<0.58 else "goblin"})
+    enemy_spawn_total += 1
+    max_enemies_observed = maxi(max_enemies_observed,enemies.size())
     if boss:
         notice.emit("THE MAYOR HAS REQUESTED YOUR IMMEDIATE DISCONTINUATION.")
 
@@ -183,7 +229,12 @@ func _hurt_enemy(index: int, damage: float, kind: String = "physical") -> void:
     var e: Dictionary = enemies[index]
     var dealt := damage * (0.82 if e.tax else 1.0)
     e.hp = float(e.hp)-dealt
-    e.flash = 0.13
+    e.flash = 0.19
+    if damage > 0.0:
+        var knock_dir: Vector2 = (e.pos-hero_position).normalized()
+        e.knock += knock_dir * minf(105.0, 13.0 + dealt*0.65)
+        if dealt >= 18.0:
+            _impact(e.pos,kind,dealt >= 35.0)
     if kind == "fire":e.burn = maxf(float(e.burn),2.6)
     if kind == "poison":e.poison = maxf(float(e.poison),3.5)
     if kind == "ice":e.stun = maxf(float(e.stun),0.38)
@@ -194,7 +245,7 @@ func _hurt_enemy(index: int, damage: float, kind: String = "physical") -> void:
         enemies.remove_at(index)
         kills += 1
         gold += 4 if e.tax else 1
-        concern = minf(100.0,concern + (0.35 if e.tax else 0.17))
+        concern = minf(100.0,concern + (0.78 if e.tax else 0.45))
         if was_boss:
             ended = true
             active = false
@@ -209,9 +260,12 @@ func _spark(pos: Vector2, color: Color, count: int) -> void:
         sparks.append({"pos":pos, "vel":Vector2(rng.randf_range(-75.0,75.0),rng.randf_range(-85.0,45.0)), "life":rng.randf_range(0.15,0.48), "color":color})
 
 func _emit_bees(pos: Vector2, recipe: Dictionary) -> void:
-    for i in range(5):
+    for i in range(6):
         if bees.size()>=MAX_BEES:return
-        bees.append({"pos":pos+Vector2(rng.randf_range(-12.0,12.0),rng.randf_range(-12.0,12.0)), "life":rng.randf_range(4.5,7.0), "cooldown":rng.randf_range(0.1,0.4), "mods":recipe.mods, "phase":rng.randf_range(0.0,6.3)})
+        bees.append({"pos":pos+Vector2(rng.randf_range(-15.0,15.0),rng.randf_range(-15.0,15.0)),
+            "life":rng.randf_range(4.7,7.2),"cooldown":rng.randf_range(0.2,0.5),
+            "mods":recipe.mods,"phase":rng.randf_range(0.0,6.3),
+            "orbit":rng.randf_range(-1.0,1.0),"wing":rng.randf_range(0.0,6.3)})
     _spark(pos, color_gold, 4)
 
 func _make_hazard(pos: Vector2, kind: String, radius: float = 19.0, generation: int = 0, power: float = 1.0) -> void:
@@ -230,14 +284,31 @@ func _process(delta: float) -> void:
     var dt := minf(delta,0.045)
     clock += dt
     hero_ward = maxf(0.0, hero_ward - dt)
+    speed_boost = maxf(0.0, speed_boost - dt)
+    coffee_boost = maxf(0.0, coffee_boost - dt)
     concern = minf(100.0, concern + dt * (0.035 + clock*0.0007))
+    hero_flash = maxf(0.0,hero_flash-dt)
+    hero_attack_pose = maxf(0.0,hero_attack_pose-dt)
+    hero_stride += dt*9.0
+    screen_kick = maxf(0.0,screen_kick-dt*12.0)
+    encounter_banner_time = maxf(0.0,encounter_banner_time-dt)
     _update_hero(dt)
     _update_enemies(dt)
+    _update_hostile_shots(dt)
     _update_actors(dt)
+    _update_rockfalls(dt)
     _update_projectiles(dt)
     _update_bees(dt)
     _update_skeletons(dt)
     _update_hazards(dt)
+    for i in range(attack_waves.size()-1,-1,-1):
+        attack_waves[i].life = float(attack_waves[i].life)-dt
+        if attack_waves[i].life<=0.0:
+            attack_waves.remove_at(i)
+    for i in range(impact_rings.size()-1,-1,-1):
+        impact_rings[i].life = float(impact_rings[i].life)-dt
+        if impact_rings[i].life<=0.0:
+            impact_rings.remove_at(i)
     if ended:
         queue_redraw()
         return
@@ -267,9 +338,11 @@ func _process(delta: float) -> void:
     if clock<TOTAL_TIME-12.0:
         spawn_clock -= dt
         if spawn_clock<=0.0:
-            spawn_clock = maxf(0.62, 2.3 - clock*0.003 - concern*0.006)
-            _spawn_enemy(rng.randf() < 0.06 + concern*0.003)
-            if concern>68.0 and rng.randf()<0.16:
+            spawn_clock = maxf(0.64, 1.15-clock*0.0006-concern*0.0022)
+            _spawn_enemy(rng.randf() < 0.06 + concern*0.002)
+            if clock>40.0 and rng.randf()<(0.18 if concern>30.0 else 0.08):
+                _spawn_enemy(false)
+            if concern>45.0 and rng.randf()<0.25:
                 _spawn_enemy(true)
     if clock>TOTAL_TIME+46.0 and boss_spawned and not ended:
         ended = true
@@ -280,73 +353,155 @@ func _process(delta: float) -> void:
 func _update_hero(dt: float) -> void:
     dash_cooldown -= dt
     hero_cooldown -= dt
-    var nearest := _nearest_enemy(hero_position)
-    if nearest<0:return
+    var nearest: int = _nearest_enemy(hero_position)
+    if nearest < 0:
+        return
     var e: Dictionary = enemies[nearest]
-    var delta_pos: Vector2 = e.pos-hero_position
-    var dist := delta_pos.length()
-    var ideal_range: float = HEROES[hero_type].range
-    var speed: float = HEROES[hero_type].speed
-    if hero_type == "kram" and dist < 100.0:
-        hero_position -= delta_pos.normalized()*speed*dt
-    elif dist>ideal_range*0.75:
-        hero_position += delta_pos.normalized()*speed*dt
-    if hero_type=="bog" and dash_cooldown<=0.0 and dist>60.0:
-        hero_position += delta_pos.normalized()*minf(55.0,dist*0.33)
-        dash_cooldown = 6.0
-        _spark(hero_position, color_gold,7)
-    hero_position = Vector2(clampf(hero_position.x, ARENA.position.x+20.0,ARENA.end.x-20.0), clampf(hero_position.y,ARENA.position.y+20.0,ARENA.end.y-18.0))
-    if hero_cooldown<=0.0 and dist<ideal_range+12.0:
-        hero_cooldown = 0.78 if hero_type!="kram" else 0.94
-        var damage := float(HEROES[hero_type].damage) + float(weapon_level) * 5.0
-        var kind := "fire" if weapon_heated > 0 else "physical"
-        if hero_type == "kram":
-            _projectile(hero_position,e.pos,"fire" if weapon_heated > 0 else "arcane",damage)
-            for n in range(weapon_split):
-                _projectile(hero_position,e.pos + Vector2(28.0 * (1 if n % 2 == 0 else -1), -29.0), "arcane",damage * 0.55)
+    var toward: Vector2 = e.pos-hero_position
+    var dist: float = toward.length()
+    var forward: Vector2 = toward.normalized()
+    var ideal_range: float = float(HEROES[hero_type].range)
+    var speed: float = float(HEROES[hero_type].speed) * (1.22 if speed_boost > 0.0 else 1.0)
+    var steer := Vector2.ZERO
+    if hero_type == "kram":
+        if dist < 125.0:
+            steer -= forward*1.5
+        elif dist > ideal_range*0.87:
+            steer += forward
         else:
-            for j in range(enemies.size()-1,-1,-1):
-                if hero_position.distance_to(enemies[j].pos) < 68.0 + float(weapon_wide) * 21.0:
-                    _hurt_enemy(j,damage*(0.82 if j!=nearest else 1.0),kind)
-            _spark(e.pos,color_gold,4)
+            steer += Vector2(-forward.y,forward.x)*0.44
+    elif dist > ideal_range*0.68:
+        steer += forward
+    else:
+        steer += Vector2(-forward.y,forward.x)*0.20
+    # Avoid stacked enemies and prevent melee heroes from sticking to arena edges.
+    for foe in enemies:
+        var gap: Vector2 = hero_position-foe.pos
+        var separation: float = gap.length()
+        if separation > 0.1 and separation < (58.0 if hero_type=="kram" else 29.0):
+            steer += gap.normalized()*(0.75 if hero_type=="kram" else 0.46)
+    var margin := 78.0
+    if hero_position.x < ARENA.position.x+margin:
+        steer.x += 1.25
+    if hero_position.x > ARENA.end.x-margin:
+        steer.x -= 1.25
+    if hero_position.y < ARENA.position.y+margin:
+        steer.y += 1.25
+    if hero_position.y > ARENA.end.y-margin:
+        steer.y -= 1.25
+    if steer.length() > 0.08:
+        var velocity: Vector2 = steer.normalized()*speed
+        hero_position += velocity*dt
+        hero_direction = velocity.normalized()
+    if hero_type=="bog" and dash_cooldown<=0.0 and dist>70.0 and dist<270.0:
+        hero_position += forward * minf(74.0,dist*0.32)
+        dash_cooldown = 5.5
+        _impact(hero_position,"physical",true)
+        _spark(hero_position,color_gold,12)
+    hero_position = Vector2(clampf(hero_position.x,ARENA.position.x+24.0,ARENA.end.x-24.0),
+        clampf(hero_position.y,ARENA.position.y+24.0,ARENA.end.y-20.0))
+    if hero_cooldown > 0.0 or dist > ideal_range+15.0:
+        return
+    hero_cooldown = (0.72 if hero_type=="jimothy" else 0.88 if hero_type=="bog" else 0.79) * (0.76 if coffee_boost > 0.0 else 1.0)
+    hero_attack_pose = 0.19
+    hero_attack_total += 1
+    var damage: float = float(HEROES[hero_type].damage)+float(weapon_level)*5.0
+    var damage_kind: String = "fire" if weapon_heated>0 else "physical"
+    if hero_type=="kram":
+        _projectile(hero_position,e.pos,"fire" if weapon_heated>0 else "arcane",damage)
+        for n in range(weapon_split):
+            _projectile(hero_position,e.pos+Vector2(25.0 if n%2==0 else -25.0,-29.0),
+                "arcane",damage*0.55)
+        _impact(hero_position,"arcane",false)
+    else:
+        var reach: float = 72.0+float(weapon_wide)*21.0
+        # The readable sweep is tied to actual melee reach, not a disconnected decoration.
+        attack_waves.append({"pos":hero_position,"angle":forward.angle(),"radius":reach,
+            "life":0.19,"max_life":0.19,"color":color_gold if hero_type=="jimothy" else Color("#abd6fa")})
+        for j in range(enemies.size()-1,-1,-1):
+            if hero_position.distance_to(enemies[j].pos) < reach:
+                _hurt_enemy(j,damage*(0.79 if j!=nearest else 1.0),damage_kind)
+        _spark(e.pos,color_gold,6)
 
 func _update_enemies(dt: float) -> void:
     for i in range(enemies.size()-1,-1,-1):
-        if i>=enemies.size():continue
+        if i >= enemies.size():
+            continue
         var e: Dictionary = enemies[i]
         e.cooldown = float(e.cooldown)-dt
         e.flash = maxf(0.0,float(e.flash)-dt)
+        e.stride = float(e.stride)+dt*6.0
         if e.burn>0.0:
             e.burn -= dt
             e.hp -= dt*4.5
         if e.poison>0.0:
             e.poison -= dt
             e.hp -= dt*3.7
-        if e.hp <= 0.0:
-            _hurt_enemy(i, 0.0)
+        if e.hp<=0.0:
+            _hurt_enemy(i,0.0)
             continue
+        var stagger: Vector2 = e.knock
+        if stagger.length()>0.1:
+            e.pos += stagger*dt*4.0
+            e.knock = stagger.move_toward(Vector2.ZERO,dt*170.0)
         if e.stun>0.0:
             e.stun -= dt
             continue
-        var goal := hero_position
-        if actors.size()>0 and rng.randf()<0.18*dt:
+        var goal: Vector2 = hero_position
+        if actors.size()>0 and rng.randf()<0.12*dt:
             goal = actors[rng.randi_range(0,actors.size()-1)].pos
         var direction: Vector2 = (goal-e.pos).normalized()
         var distance: float = e.pos.distance_to(hero_position)
         if e.archer:
-            if distance < 120.0:
-                e.pos -= direction * float(e.speed) * dt
-            elif distance > 205.0:
-                e.pos += direction * float(e.speed) * dt
-            if distance < 250.0 and e.cooldown <= 0.0:
-                e.cooldown = 2.6
-                _damage_hero(float(e.damage) * 0.72)
-                _spark(hero_position, Color("#d17d69"), 4)
+            if distance<135.0:
+                e.pos -= direction*float(e.speed)*dt
+            elif distance>210.0:
+                e.pos += direction*float(e.speed)*dt
+            if distance<275.0 and e.cooldown<=0.0:
+                e.cooldown = 2.3
+                _hostile_arrow(e.pos,hero_position,float(e.damage)*0.85)
         else:
-            e.pos += direction * float(e.speed) * dt
-            if distance < 24.0 and e.cooldown <= 0.0:
-                e.cooldown = 1.1 if e.tax else 1.45
+            var crowd_push := Vector2.ZERO
+            for other in enemies:
+                if other==e:
+                    continue
+                var space: Vector2 = e.pos-other.pos
+                if space.length_squared() < 360.0 and space.length_squared()>0.01:
+                    crowd_push += space.normalized()*0.37
+            e.pos += (direction+crowd_push).normalized()*float(e.speed)*dt
+            if distance<26.0 and e.cooldown<=0.0:
+                e.cooldown = 1.18 if e.sprinter else 1.32 if e.tax else 1.48
                 _damage_hero(float(e.damage))
+        e.pos = Vector2(clampf(e.pos.x,ARENA.position.x+12.0,ARENA.end.x-12.0),
+            clampf(e.pos.y,ARENA.position.y+17.0,ARENA.end.y-12.0))
+
+func _hostile_arrow(origin: Vector2, destination: Vector2, power: float) -> void:
+    if hostile_shots.size() >= MAX_HOSTILE_SHOTS:
+        return
+    var direction: Vector2 = (destination-origin).normalized()
+    hostile_shots.append({"pos":origin,"vel":direction*195.0,"damage":power,"life":2.4})
+    hostile_arrow_total += 1
+    _spark(origin,Color("#e3b992"),3)
+
+func _update_hostile_shots(dt: float) -> void:
+    for i in range(hostile_shots.size()-1,-1,-1):
+        var shot: Dictionary = hostile_shots[i]
+        shot.pos += shot.vel*dt
+        shot.life -= dt
+        if shot.pos.distance_to(hero_position)<19.0:
+            _damage_hero(float(shot.damage))
+            hostile_shots.remove_at(i)
+            continue
+        if shot.life<=0.0 or not ARENA.grow(20.0).has_point(shot.pos):
+            hostile_shots.remove_at(i)
+
+func _impact(point: Vector2, kind: String, large: bool) -> void:
+    if impact_rings.size() >= MAX_HIT_FLASHES:
+        impact_rings.pop_front()
+    impact_rings.append({"pos":point,"kind":kind,"life":0.29 if large else 0.17,"max_life":0.29 if large else 0.17,
+        "radius":33.0 if large else 19.0})
+    if large and screen_kick < 1.0:
+        screen_kick = 0.9
 
 func _damage_hero(raw_damage: float) -> void:
     if ended:
@@ -356,6 +511,9 @@ func _damage_hero(raw_damage: float) -> void:
     if hero_ward > 0.0:
         armor_factor *= 0.79
     hp = maxf(0.0, hp - raw_damage * armor_factor)
+    hero_flash = 0.24
+    hero_damage_taken += raw_damage * armor_factor
+    _impact(hero_position,"hurt",false)
     _spark(hero_position, Color("#e76d70"), 5)
     updated.emit()
     if hp <= 0.0:
@@ -367,6 +525,9 @@ func _update_actors(dt: float) -> void:
     for a in actors:
         var recipe: Dictionary = a.recipe
         a.phase = float(a.phase)+dt
+        a.pulse = maxf(0.0,float(a.pulse)-dt)
+        a.trail_clock = float(a.trail_clock)-dt
+        a.peck_clock = float(a.peck_clock)-dt
         a.cooldown = float(a.cooldown)-dt
         a.wander = float(a.wander)-dt
         var host: String = str(recipe.host)
@@ -384,8 +545,18 @@ func _update_actors(dt: float) -> void:
                 velocity *= 1.33
             a.pos += vel * velocity*dt
         else:
-            # Stationary emplacements stay independent; never attach to hero each frame.
+            # Stationary emplacements still animate, rather than teleport to hero.
             pass
+        # Chicken carriers react physically, leaving a trail and pecking in passing.
+        if host=="chicken":
+            var victim: int = _nearest_enemy(a.pos)
+            if victim>=0 and a.pos.distance_to(enemies[victim].pos)<30.0 and a.peck_clock<=0.0:
+                a.peck_clock = 1.25
+                _hurt_enemy(victim,7.0,"fire" if recipe.mods.fire else "poison" if recipe.mods.poison else "physical")
+                _spark(a.pos,color_gold,5)
+            if a.trail_clock<=0.0 and (recipe.mods.fire or recipe.mods.poison or recipe.mods.ice):
+                a.trail_clock = 0.78
+                _make_hazard(a.pos,"fire" if recipe.mods.fire else "poison" if recipe.mods.poison else "ice",17.0)
         var away: Vector2 = a.pos - hero_position
         if away.length()<38.0:
             a.pos += (away.normalized() if away.length()>0.1 else Vector2.RIGHT) * 54.0*dt
@@ -403,7 +574,16 @@ func _update_actors(dt: float) -> void:
         if a.cooldown<=0.0:
             a.cooldown = (3.0 if recipe.mods.bees else 2.15) * (0.78 if recipe.mods.coffee else 1.0)
             a.casts = int(a.casts)+1
+            a.pulse = 0.32
+            _impact(a.pos,"fire" if recipe.mods.fire else "poison" if recipe.mods.poison else "ice" if recipe.mods.ice else "arcane",false)
             var near := _nearest_enemy(a.pos)
+            # A disconnected item is a real invention, not an inert attachment.
+            if recipe.ids.size()==1 and _activate_solo(a,near):
+                continue
+            # Adding a rock to any machine adds its impact, not merely a damage stat.
+            if recipe.mods.heavy and near>=0:
+                _summon_rock(enemies[near].pos, 19.0+recipe.ids.size()*3.0,
+                    "fire" if recipe.mods.fire else "ice" if recipe.mods.ice else "physical")
             if recipe.mods.bees:
                 _emit_bees(a.pos, recipe)
             if recipe.mods.fire:
@@ -447,6 +627,74 @@ func _update_actors(dt: float) -> void:
                     enemies[near].pos += knock * 27.0
                     _spark(enemies[near].pos, color_gold, 8)
 
+
+func _activate_solo(a: Dictionary, nearest: int) -> bool:
+    var id: String = str(a.recipe.ids[0])
+    match id:
+        "hammer":
+            a.cooldown = 2.85
+            if nearest >= 0:
+                _summon_rock(enemies[nearest].pos, 44.0,"physical")
+            else:
+                _impact(a.pos,"physical",true)
+            return true
+        "torch":
+            a.cooldown = 1.65
+            _make_hazard(a.pos,"fire",22.0)
+            if nearest >= 0:
+                _projectile(a.pos,enemies[nearest].pos,"fire",24.0)
+            _spark(a.pos,color_fire,11)
+            return true
+        "boots":
+            a.cooldown = 3.0
+            speed_boost = maxf(speed_boost,2.75)
+            _spark(hero_position,Color("#adcefc"),10)
+            return true
+        "coffee":
+            a.cooldown = 3.0
+            coffee_boost = maxf(coffee_boost,2.7)
+            _spark(hero_position,Color("#e2a978"),10)
+            return true
+        "board":
+            a.cooldown = 2.7
+            hero_ward = maxf(hero_ward,2.4)
+            _impact(hero_position,"physical",true)
+            for i in range(enemies.size()-1,-1,-1):
+                var away: Vector2 = enemies[i].pos-hero_position
+                if away.length() < 100.0 and not bool(enemies[i].boss):
+                    enemies[i].knock += away.normalized()*55.0
+            return true
+    return false
+
+func _summon_rock(destination: Vector2, power: float, kind: String = "physical") -> void:
+    if rockfalls.size()>=MAX_ROCKFALLS:
+        return
+    var land: Vector2 = Vector2(clampf(destination.x,ARENA.position.x+36.0,ARENA.end.x-36.0),
+        clampf(destination.y,ARENA.position.y+38.0,ARENA.end.y-25.0))
+    rockfalls.append({"pos":land,"age":0.0,"delay":0.48,"damage":power,"kind":kind,"radius":58.0})
+
+func _update_rockfalls(dt: float) -> void:
+    for i in range(rockfalls.size()-1,-1,-1):
+        var r: Dictionary = rockfalls[i]
+        r.age = float(r.age)+dt
+        if float(r.age)<float(r.delay):
+            continue
+        var center: Vector2 = r.pos
+        _impact(center,str(r.kind),true)
+        _spark(center,color_fire if r.kind=="fire" else color_ice if r.kind=="ice" else color_gold,17)
+        if r.kind=="fire":
+            _make_hazard(center,"fire",31.0)
+        elif r.kind=="ice":
+            _make_hazard(center,"ice",30.0)
+        for j in range(enemies.size()-1,-1,-1):
+            if j>=enemies.size():
+                continue
+            var away: Vector2 = enemies[j].pos-center
+            if away.length()<=float(r.radius):
+                if not bool(enemies[j].boss):
+                    enemies[j].knock += (away.normalized() if away.length()>1.0 else Vector2.RIGHT)*88.0
+                _hurt_enemy(j,float(r.damage)*(1.0-away.length()/150.0),str(r.kind))
+        rockfalls.remove_at(i)
 
 func _electric_burst(origin: Vector2, power: float, maximum: int) -> void:
     var used: Dictionary = {}
@@ -527,10 +775,13 @@ func _update_bees(dt: float) -> void:
         b.phase += dt*12.0
         var near := _nearest_enemy(b.pos)
         if near>=0:
-            b.pos += (enemies[near].pos-b.pos).normalized()*145.0*dt
+            var direction: Vector2 = (enemies[near].pos-b.pos).normalized()
+            var orbit: Vector2 = Vector2(-direction.y,direction.x)*sin(float(b.phase)*1.1+float(b.orbit))*0.22
+            b.pos += (direction+orbit).normalized()*160.0*dt
             if b.pos.distance_to(enemies[near].pos)<16.0 and b.cooldown<=0.0:
                 var kind := "fire" if b.mods.fire else "ice" if b.mods.ice else "poison" if b.mods.poison else "physical"
                 _hurt_enemy(near,8.0,kind)
+                _spark(b.pos,color_fire if kind=="fire" else color_poison if kind=="poison" else color_gold,2)
                 b.cooldown = 0.52
                 b.life -= 1.2
         if b.life<=0.0:bees.remove_at(i)
@@ -580,21 +831,132 @@ func _draw_sprite(id: String, at: Vector2, size: float = 38.0, alpha: float = 1.
     var rect := Rect2(at-Vector2(size*0.5,size*0.70),Vector2(size,size*1.17))
     draw_texture_rect(texture,rect,false,Color(1,1,1,alpha))
 
-func _draw() -> void:
-    draw_rect(Rect2(0,0,832,648),Color("#141d29"))
-    draw_rect(ARENA,Color("#33464a"))
-    # Deterministic tile texture (no RNG used during rendering).
-    for y in range(6,28):
+func _outlined_sprite(id: String, pos: Vector2, size: float, alpha: float = 1.0) -> void:
+    if not sprites.has(id):
+        return
+    var texture: Texture2D = sprites[id]
+    var rect := Rect2(pos-Vector2(size*0.5,size*0.70),Vector2(size,size*1.17))
+    # A two-pixel dark outline makes the tiny pixel silhouettes readable amid hazards.
+    for offset in [Vector2(-2,0),Vector2(2,0),Vector2(0,-2),Vector2(0,2)]:
+        draw_texture_rect(texture,Rect2(rect.position+offset,rect.size),false,Color(0.07,0.09,0.11,alpha*0.80))
+    draw_texture_rect(texture,rect,false,Color(1.0,1.0,1.0,alpha))
+
+
+func _draw_host(id: String, at: Vector2, size: float, alpha: float = 1.0) -> void:
+    if sprites.has(id):
+        _outlined_sprite(id,at,size,alpha)
+        return
+    # No invisible inventions: hand-drawn low-resolution silhouettes for items
+    # that do not yet have dedicated pixel sprite assets.
+    var ink := Color("#1a2631")
+    var light := Color("#f2e4c5")
+    var pos := at + Vector2(0,-8)
+    match id:
+        "hammer":
+            draw_colored_polygon(PackedVector2Array([pos+Vector2(-19,-6),pos+Vector2(-7,-17),
+                pos+Vector2(12,-15),pos+Vector2(21,-1),pos+Vector2(13,13),
+                pos+Vector2(-13,12)]),Color("#9d9b9b"))
+            draw_line(pos+Vector2(-9,-12),pos+Vector2(7,-9),light,2.0)
+            draw_line(pos+Vector2(-3,1),pos+Vector2(8,10),ink,3.0)
+        "board":
+            draw_rect(Rect2(pos+Vector2(-15,-21),Vector2(30,39)),ink)
+            draw_rect(Rect2(pos+Vector2(-12,-18),Vector2(24,33)),Color("#b68a5f"))
+            draw_line(pos+Vector2(-3,-17),pos+Vector2(-3,14),Color("#624832"),3.0)
+            draw_line(pos+Vector2(-11,-4),pos+Vector2(11,-4),Color("#e1bf81"),3.0)
+        "boots":
+            draw_rect(Rect2(pos+Vector2(-15,-15),Vector2(11,21)),Color("#cb8ca9"))
+            draw_rect(Rect2(pos+Vector2(2,-15),Vector2(11,21)),Color("#cb8ca9"))
+            draw_rect(Rect2(pos+Vector2(-20,2),Vector2(16,9)),ink)
+            draw_rect(Rect2(pos+Vector2(2,2),Vector2(17,9)),ink)
+        "coffee":
+            draw_rect(Rect2(pos+Vector2(-14,-12),Vector2(24,23)),Color("#e5c1a4"))
+            draw_rect(Rect2(pos+Vector2(-12,-15),Vector2(20,8)),Color("#7b473b"))
+            draw_arc(pos+Vector2(9,-2),10,-PI/2,PI/2,12,light,4.0)
+            draw_line(pos+Vector2(-8,-20),pos+Vector2(-6,-28),Color("#d7e2dc"),2.0)
+        "paper":
+            draw_rect(Rect2(pos+Vector2(-16,-21),Vector2(32,42)),ink)
+            draw_rect(Rect2(pos+Vector2(-13,-19),Vector2(26,36)),light)
+            for k in range(3):
+                draw_rect(Rect2(pos+Vector2(-9,-12+9*k),Vector2(17,3)),Color("#b18e76"))
+        "battery":
+            draw_rect(Rect2(pos+Vector2(-14,-18),Vector2(28,36)),ink)
+            draw_rect(Rect2(pos+Vector2(-11,-14),Vector2(22,29)),Color("#8dcdd6"))
+            draw_rect(Rect2(pos+Vector2(-6,-22),Vector2(12,5)),light)
+            draw_line(pos+Vector2(4,-11),pos+Vector2(-4,1),Color("#f8edaf"),4.0)
+            draw_line(pos+Vector2(-4,1),pos+Vector2(5,4),Color("#f8edaf"),4.0)
+        "grease":
+            draw_circle(pos+Vector2(0,10),19.0,ink)
+            draw_circle(pos+Vector2(0,9),14.0,Color("#c6bd86"))
+            draw_circle(pos+Vector2(-6,3),4.0,light)
+        "bones":
+            draw_circle(pos+Vector2(0,-11),13.0,light)
+            draw_rect(Rect2(pos+Vector2(-9,-7),Vector2(18,19)),light)
+            draw_rect(Rect2(pos+Vector2(-8,-15),Vector2(5,5)),ink)
+            draw_rect(Rect2(pos+Vector2(4,-15),Vector2(5,5)),ink)
+            draw_line(pos+Vector2(-14,19),pos+Vector2(15,12),light,4.0)
+        "bandage":
+            draw_rect(Rect2(pos+Vector2(-18,-11),Vector2(36,24)),Color("#d6e4cb"))
+            draw_rect(Rect2(pos+Vector2(-5,-17),Vector2(10,34)),Color("#d6e4cb"))
+            draw_rect(Rect2(pos+Vector2(-3,-10),Vector2(6,20)),Color("#db7584"))
+            draw_rect(Rect2(pos+Vector2(-10,-3),Vector2(20,6)),Color("#db7584"))
+        "magnet":
+            draw_arc(pos,15.0,0.0,PI,22,Color("#c8a5f3"),8.0)
+            draw_rect(Rect2(pos+Vector2(-19,-4),Vector2(9,19)),Color("#e3919e"))
+            draw_rect(Rect2(pos+Vector2(10,-4),Vector2(9,19)),Color("#8dccf0"))
+        "mirror":
+            draw_rect(Rect2(pos+Vector2(-17,-23),Vector2(34,42)),Color("#d9b07b"))
+            draw_rect(Rect2(pos+Vector2(-12,-18),Vector2(24,32)),Color("#b4e0ee"))
+            draw_line(pos+Vector2(3,-17),pos+Vector2(-7,5),ink,2.0)
+            draw_line(pos+Vector2(-7,5),pos+Vector2(4,14),ink,2.0)
+        "ice":
+            draw_colored_polygon(PackedVector2Array([pos+Vector2(0,-26),pos+Vector2(15,-5),
+                pos+Vector2(8,20),pos+Vector2(-12,14),pos+Vector2(-18,-5)]),Color("#98dcef"))
+            draw_line(pos+Vector2(0,-23),pos+Vector2(1,15),light,2.0)
+        _:
+            draw_circle(pos,16.0,Color("#bba795"))
+            draw_rect(Rect2(pos+Vector2(-8,-9),Vector2(16,18)),ink)
+
+func _environment() -> void:
+    var road: bool = clock >= 130.0 and clock < 275.0
+    var dusk: bool = clock >= 275.0
+    draw_rect(Rect2(0,0,832,648),Color("#141c22"))
+    draw_rect(ARENA,Color("#423f40") if dusk else Color("#475648") if road else Color("#394e3f"))
+    # Broken cobbles and grass are deterministic: no flashing tiles or draw-time randomness.
+    for y in range(5,27):
         for x in range(1,36):
-            var xx := x*23.0
-            var yy := y*23.0
-            if ARENA.has_point(Vector2(xx,yy)) and (x*7+y*11)%5==0:
-                draw_rect(Rect2(xx, yy, 17, 3),Color("#455859"))
-            if ARENA.has_point(Vector2(xx,yy)) and (x*13+y*3)%13==0:
-                draw_rect(Rect2(xx+6, yy+5, 3, 3),Color("#648479"))
-    for x in range(int(ARENA.position.x)+20,int(ARENA.end.x)-20,98):
-        draw_rect(Rect2(x, ARENA.position.y+4,24,5),Color("#7b725e"))
-        draw_rect(Rect2(x, ARENA.end.y-8,34,4),Color("#7b725e"))
+            var pt := Vector2(x*23.0+5.0,y*23.0+7.0)
+            if not ARENA.has_point(pt):
+                continue
+            var variant: int = (x*11+y*7)%9
+            if road and pt.y>230.0 and pt.y<480.0:
+                if variant<6:
+                    draw_rect(Rect2(pt,Vector2(17,13)),Color("#615c4f"))
+                    draw_rect(Rect2(pt+Vector2(0,12),Vector2(14,2)),Color("#82755d"))
+            elif variant<3:
+                draw_rect(Rect2(pt,Vector2(3,7)),Color("#66865b") if not dusk else Color("#776c68"))
+                draw_rect(Rect2(pt+Vector2(4,-2),Vector2(2,4)),Color("#7b9568"))
+            elif variant==8:
+                draw_rect(Rect2(pt,Vector2(12,2)),Color("#607263"))
+    if road:
+        draw_rect(Rect2(ARENA.position.x,224,ARENA.size.x,7),Color("#847257"))
+        draw_rect(Rect2(ARENA.position.x,487,ARENA.size.x,7),Color("#847257"))
+    for x in range(62,830,105):
+        draw_rect(Rect2(Vector2(x,ARENA.position.y+7),Vector2(27,7)),Color("#8e765e"))
+        draw_rect(Rect2(Vector2(x+12,ARENA.end.y-15),Vector2(26,8)),Color("#8e765e"))
+        draw_rect(Rect2(Vector2(x+6,ARENA.position.y+14),Vector2(3,12)),Color("#b69a71"))
+
+func _draw() -> void:
+    render_frame_count += 1
+    _environment()
+    # Telegraph falling rocks clearly before impact; impact is a separate timed effect.
+    for falling in rockfalls:
+        var ratio: float = clampf(float(falling.age)/float(falling.delay),0.0,1.0)
+        var center: Vector2 = falling.pos
+        var rad: float = float(falling.radius)*(0.75+ratio*0.25)
+        draw_arc(center,rad,0.0,TAU,27,Color(1.0,0.65,0.38,0.4+ratio*0.55),2.5)
+        draw_circle(center,9.0,Color(0.2,0.12,0.12,0.35))
+        var airborne: Vector2 = center+Vector2(0,-98.0*(1.0-ratio))
+        _draw_host("hammer",airborne,36.0+15.0*ratio)
     # Persistent hazards with safe non-negative radii.
     for h in hazards:
         var ratio: float = clampf(float(h.age)/float(h.life),0.0,1.0)
@@ -610,7 +972,14 @@ func _draw() -> void:
             draw_line(h.pos+Vector2(-rad*0.4,0),h.pos+Vector2(rad*0.4,0),Color("#d8f7ff"),2.0)
             draw_line(h.pos+Vector2(0,-rad*0.35),h.pos+Vector2(0,rad*0.35),Color("#d8f7ff"),2.0)
     for e in enemies:
-        _draw_sprite("taxman" if e.tax else "goblin" if e.archer else "rat",e.pos,53.0 if e.boss else 41.0)
+        var gait: float = sin(float(e.stride)) * (2.0 if e.sprinter else 1.2)
+        var sprite_id: String = "taxman" if e.boss or e.tax else "goblin" if e.kind in ["goblin","archer"] else "rat"
+        draw_ellipse_shadow(e.pos,20.0 if e.boss else 13.0)
+        _outlined_sprite(sprite_id,e.pos+Vector2(0,gait),57.0 if e.boss else 43.0 if e.tax else 37.0)
+        if e.kind=="goblin":
+            draw_rect(Rect2(e.pos+Vector2(-12,-29+gait),Vector2(25,5)),Color("#a5bd82"))
+        if e.tax and not e.boss:
+            draw_rect(Rect2(e.pos+Vector2(-14,-32+gait),Vector2(29,6)),Color("#ba8565"))
         if e.archer:
             draw_line(e.pos + Vector2(-12, -28), e.pos + Vector2(12, -28), Color("#f8c06a"), 2.0)
         if e.sprinter:
@@ -619,14 +988,20 @@ func _draw() -> void:
         draw_rect(Rect2(e.pos+Vector2(-w*0.5,-32),Vector2(w,4)),Color("#1b2027"))
         draw_rect(Rect2(e.pos+Vector2(-w*0.5,-32),Vector2(w*clampf(float(e.hp)/float(e.max_hp),0.0,1.0),4)),Color("#d36a65"))
         if e.flash>0.0:
-            draw_arc(e.pos,19.0,0.0,TAU,12,Color("#ffe9ba"),1.8)
+            var fade: float = clampf(float(e.flash)/0.19,0.0,1.0)
+            draw_circle(e.pos+Vector2(0,-9),22.0,Color(1.0,0.9,0.64,fade*0.26))
+            draw_arc(e.pos,24.0,0.0,TAU,17,Color(1.0,0.89,0.66,fade),2.4)
         if e.burn>0.0:draw_circle(e.pos+Vector2(0,-23),5.0,Color("#f28c57"))
         if e.poison>0.0:draw_circle(e.pos+Vector2(12,-17),4.0,Color("#88d769"))
     for a in actors:
         var recipe: Dictionary = a.recipe
         draw_ellipse_shadow(a.pos,22.0)
         var host: String = str(recipe.host)
-        _draw_sprite(host,a.pos,48.0 if host=="saucer" else 41.0,0.68 if recipe.mods.ghost else 1.0)
+        var motion: float = sin(float(a.phase)*8.0)*2.5 if host in ["chicken","goblin"] else 0.0
+        _draw_host(host,a.pos+Vector2(0,motion),48.0 if host=="saucer" else 43.0,0.68 if recipe.mods.ghost else 1.0)
+        if float(a.pulse)>0.0:
+            var pulse_fade: float = clampf(float(a.pulse)/0.32,0.0,1.0)
+            draw_arc(a.pos,18.0+25.0*(1.0-pulse_fade),0.0,TAU,21,Color(1.0,0.91,0.72,pulse_fade*0.75),2.0)
         if str(recipe.rider)!="":
             _draw_sprite(str(recipe.rider),a.pos+Vector2(0,-26),30.0)
         if recipe.mods.fire:
@@ -643,14 +1018,20 @@ func _draw() -> void:
             draw_arc(a.pos,35.0+sin(float(a.phase)*2.0)*3.0,0.0,TAU,22,Color(0.79,0.66,1.0,0.52),1.5)
         if recipe.ids.has("torch"):
             _draw_sprite("torch",a.pos+Vector2(-18,-12),20.0)
-        draw_string(ThemeDB.fallback_font,a.pos+Vector2(-37,34),str(recipe.title).substr(0,20),HORIZONTAL_ALIGNMENT_LEFT,-1,10,Color("#f6e1af"))
+        if float(a.pulse)>0.0:
+            draw_string(ThemeDB.fallback_font,a.pos+Vector2(-39,-37),str(recipe.title).substr(0,17),
+                HORIZONTAL_ALIGNMENT_LEFT,-1,11,Color("#ffe1a3"))
     for unit in skeletons:
         var skeleton_pos: Vector2 = unit.pos
         draw_circle(skeleton_pos + Vector2(0,10),12.0,Color(0.66,0.87,0.71,0.18))
         _draw_sprite("ghost",skeleton_pos,31.0,0.86)
         draw_arc(skeleton_pos,12.0,0.0,TAU,13,Color(0.63,0.84,0.76,0.58),1.0)
     for b in bees:
-        _draw_sprite("bee",b.pos+Vector2(0,sin(float(b.phase))*3.0),15.0)
+        var wing: float = sin(float(b.phase)*2.8)*4.0
+        var bee_pos: Vector2 = b.pos+Vector2(0,sin(float(b.phase))*3.0)
+        draw_line(bee_pos+Vector2(-3,-2),bee_pos+Vector2(-8,-7-wing*0.3),Color("#f6e4a8"),2.0)
+        draw_line(bee_pos+Vector2(2,-2),bee_pos+Vector2(7,-7+wing*0.3),Color("#f6e4a8"),2.0)
+        _draw_sprite("bee",bee_pos,17.0)
     for arc in lightning_arcs:
         var power: float = clampf(float(arc.life)/float(arc.max_life),0.0,1.0)
         var a_pos: Vector2 = arc["from"]
@@ -661,13 +1042,47 @@ func _draw() -> void:
         draw_line(a_pos,b_pos,Color("#f3fbff",power*0.60),1.0)
     for p in projectiles:
         var col := color_fire if p.kind=="fire" else color_poison if p.kind=="poison" else color_ice if p.kind in ["arcane","ice"] else Color("#c9a8ff") if p.kind=="echo" else color_gold
-        draw_line(p.pos-p.vel.normalized()*10.0,p.pos,col,3.5)
+        draw_line(p.pos-p.vel.normalized()*18.0,p.pos,col,5.0)
+        draw_line(p.pos-p.vel.normalized()*7.0,p.pos,Color("#fff3df"),2.0)
         _draw_sprite("saucer" if p.kind=="saucer" else "shot",p.pos,22.0 if p.kind=="saucer" else 14.0)
-    for s in sparks:
-        draw_rect(Rect2(s.pos,Vector2(4,4)),s.color)
-    draw_ellipse_shadow(hero_position,24.0)
-    _draw_sprite(hero_type,hero_position,49.0)
-    draw_string(ThemeDB.fallback_font,Vector2(24,116),"THE VILLAGE INCIDENT  /  GODOT MIGRATION SLICE",HORIZONTAL_ALIGNMENT_LEFT,-1,15,Color("#f8ddb3"))
+    for shot in hostile_shots:
+        var tip: Vector2 = shot.pos
+        var travel: Vector2 = shot.vel.normalized()
+        draw_line(tip-travel*13.0,tip+travel*5.0,Color("#ffd59b"),3.0)
+        draw_line(tip-travel*13.0,tip-travel*18.0,Color("#8b514c"),2.0)
+    for wave in attack_waves:
+        var pct: float = clampf(float(wave.life)/float(wave.max_life),0.0,1.0)
+        draw_arc(wave.pos,float(wave.radius),float(wave.angle)-0.85,float(wave.angle)+0.85,19,
+            Color(wave.color.r,wave.color.g,wave.color.b,pct*0.8),6.0)
+    for ring in impact_rings:
+        var fade: float = clampf(float(ring.life)/float(ring.max_life),0.0,1.0)
+        var hue: Color = color_fire if ring.kind=="fire" else color_poison if ring.kind=="poison" else color_ice if ring.kind in ["ice","arcane"] else Color("#f0ddae")
+        draw_arc(ring.pos,float(ring.radius)*(1.25-0.5*fade),0.0,TAU,18,
+            Color(hue.r,hue.g,hue.b,fade*0.68),2.6)
+    for particle in sparks:
+        draw_rect(Rect2(particle.pos,Vector2(4,4)),particle.color)
+    if speed_boost > 0.0:
+        draw_arc(hero_position,32.0,0.0,TAU,21,Color(0.65,0.83,1.0,0.65),2.0)
+    if coffee_boost > 0.0:
+        draw_arc(hero_position,37.0,0.0,TAU,21,Color(0.97,0.70,0.43,0.45),2.0)
+    draw_ellipse_shadow(hero_position,21.0)
+    var bounce: float = sin(hero_stride)*2.3
+    _outlined_sprite(hero_type,hero_position+Vector2(0,bounce),53.0)
+    if hero_attack_pose>0.0:
+        var hand: Vector2 = hero_position+hero_direction*23.0+Vector2(0,-13)
+        draw_line(hero_position+Vector2(0,-8),hand,Color("#f9df99"),5.0)
+        draw_circle(hand,5.0,Color("#fff6d2"))
+    if hero_flash>0.0:
+        var pain: float = clampf(hero_flash/0.24,0.0,1.0)
+        draw_arc(hero_position,27.0,0.0,TAU,20,Color(1.0,0.35,0.36,pain),3.0)
+    if encounter_banner_time>0.0:
+        var alpha: float = minf(1.0,encounter_banner_time*0.7)
+        draw_rect(Rect2(214,118,390,37),Color(0.10,0.12,0.16,alpha*0.78))
+        draw_string(ThemeDB.fallback_font,Vector2(236,144),encounter_banner,
+            HORIZONTAL_ALIGNMENT_LEFT,-1,18,Color(1.0,0.83,0.54,alpha))
+    else:
+        draw_string(ThemeDB.fallback_font,Vector2(31,120),stage()+" / A MUNICIPAL EMERGENCY",
+            HORIZONTAL_ALIGNMENT_LEFT,-1,12,Color("#f1e3bc"))
 
 func draw_ellipse_shadow(pos: Vector2, radius: float) -> void:
     draw_circle(pos+Vector2(0,15),radius,Color(0.02,0.03,0.04,0.30))
@@ -679,4 +1094,6 @@ func stage() -> String:
     return "THE MAYOR"
 
 func report() -> Dictionary:
-    return {"hp":hp, "max_hp":max_hp, "gold":gold, "kills":kills, "concern":concern, "time":clock, "stage":stage(), "kits":kits, "enemies":enemies.size(), "actors":actors.size(), "weapon_level":weapon_level, "discovered":discovery_index}
+    return {"hp":hp, "max_hp":max_hp, "gold":gold, "kills":kills, "concern":concern, "time":clock, "stage":stage(), "kits":kits, "enemies":enemies.size(), "actors":actors.size(), "weapon_level":weapon_level, "discovered":discovery_index,
+        "spawn_total":enemy_spawn_total, "max_enemies":max_enemies_observed,
+        "hero_attacks":hero_attack_total, "damage_taken":hero_damage_taken}
