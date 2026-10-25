@@ -13,7 +13,7 @@ func check(condition: bool, message: String) -> void:
         push_error("PARITY: " + message)
 
 func _run() -> void:
-    var main := load("res://scenes/Main.tscn").instantiate()
+    var main = load("res://scenes/Main.tscn").instantiate()
     root.add_child(main)
     check(main.world != null, "Battlefield exists")
     check(main.reward_overlay != null, "Reward overlay exists")
