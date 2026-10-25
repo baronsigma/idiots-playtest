@@ -214,9 +214,10 @@ func _emit_bees(pos: Vector2, recipe: Dictionary) -> void:
         bees.append({"pos":pos+Vector2(rng.randf_range(-12.0,12.0),rng.randf_range(-12.0,12.0)), "life":rng.randf_range(4.5,7.0), "cooldown":rng.randf_range(0.1,0.4), "mods":recipe.mods, "phase":rng.randf_range(0.0,6.3)})
     _spark(pos, color_gold, 4)
 
-func _make_hazard(pos: Vector2, kind: String, radius: float = 19.0) -> void:
+func _make_hazard(pos: Vector2, kind: String, radius: float = 19.0, generation: int = 0, power: float = 1.0) -> void:
     if hazards.size()>=MAX_HAZARDS:return
-    hazards.append({"pos":pos, "kind":kind, "age":0.0, "life":rng.randf_range(3.5,5.2), "radius":radius, "damage_timer":0.0})
+    hazards.append({"pos":pos, "kind":kind, "age":0.0, "life":rng.randf_range(3.5,5.2),
+        "radius":radius, "damage_timer":0.0, "generation":generation, "power":power, "spread":false})
 
 func _projectile(from: Vector2, to: Vector2, kind: String, power: float) -> void:
     if projectiles.size()>=MAX_PROJECTILES:return
@@ -549,6 +550,14 @@ func _update_hazards(dt: float) -> void:
                     h.life = maxf(float(h.life), float(h.age) + 3.0)
                     _spark(h.pos, color_fire, 10)
                     break
+        if not bool(h.spread) and int(h.generation) == 0 and float(h.age) > 1.45 and h.kind in ["fire","poison","spores"]:
+            h.spread = true
+            if hazards.size() < MAX_HAZARDS:
+                var drift := Vector2(rng.randf_range(-46.0,46.0),rng.randf_range(-40.0,40.0))
+                var landing: Vector2 = h.pos + drift
+                if ARENA.has_point(landing):
+                    _make_hazard(landing,str(h.kind),float(h.radius)*0.76,1,0.55)
+                    _spark(landing, color_fire if h.kind=="fire" else color_poison, 4)
         if h.damage_timer<=0.0:
             h.damage_timer = 0.6
             var radius: float = float(h.radius)*(1.0+minf(0.6,float(h.age)*0.13))
@@ -559,9 +568,9 @@ func _update_hazards(dt: float) -> void:
                     if h.kind == "grease":
                         enemies[j].stun = maxf(float(enemies[j].stun),0.16)
                     elif h.kind == "ice":
-                        _hurt_enemy(j,2.0,"ice")
+                        _hurt_enemy(j,2.0 * float(h.power),"ice")
                     else:
-                        _hurt_enemy(j,6.0,h.kind if h.kind in ["fire","poison"] else "poison")
+                        _hurt_enemy(j,6.0 * float(h.power),h.kind if h.kind in ["fire","poison"] else "poison")
         if h.age >= h.life:
             hazards.remove_at(i)
 
