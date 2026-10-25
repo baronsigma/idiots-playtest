@@ -57,6 +57,7 @@ var hero_stride := 0.0
 var hero_attack_pose := 0.0
 var enemy_spawn_total := 0
 var hero_attack_total := 0
+var render_frame_count := 0
 var hero_damage_taken := 0.0
 var hostile_arrow_total := 0
 var max_enemies_observed := 0
@@ -784,6 +785,8 @@ func _environment() -> void:
         draw_rect(Rect2(Vector2(x+12,ARENA.end.y-15),Vector2(26,8)),Color("#8e765e"))
         draw_rect(Rect2(Vector2(x+6,ARENA.position.y+14),Vector2(3,12)),Color("#b69a71"))
 
+func _draw() -> void:
+    render_frame_count += 1
     _environment()
     # Persistent hazards with safe non-negative radii.
     for h in hazards:
