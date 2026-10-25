@@ -24,6 +24,8 @@ jobs:
         run: godot --headless --path . --script res://tests/test_engineering.gd
       - name: Check 90-second combat pacing and movement
         run: godot --headless --path . --script res://tests/test_feel.gd
+      - name: Verify battlefield draw callback during live combat
+        run: godot --headless --path . --script res://tests/test_render.gd
       - name: Smoke test full scene
         shell: bash
         run: |
