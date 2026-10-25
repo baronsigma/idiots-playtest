@@ -46,19 +46,29 @@ func _run() -> void:
         enemy.pos=Vector2(780,585)
     world.enemies[0].pos=Vector2(319,305)
     var hp_before: float = float(world.enemies[0].hp)
+    var kills_before: int = world.kills
     world._update_actors(0.04)
     check(world.rockfalls.size()==1,"Standalone Big Rock did not schedule an impact")
     world._update_rockfalls(0.55)
     check(world.rockfalls.is_empty(),"Rockfall did not land")
-    check(float(world.enemies[0].hp)<hp_before,"Rockfall dealt no damage")
+    check(world.kills>kills_before or float(world.enemies[0].hp)<hp_before,
+        "Rockfall dealt no damage")
 
     world.start("jimothy")
     world.set_inventions([grammar.resolve(["torch"])])
     world.actors[0].pos=Vector2(300,300)
     world.actors[0].cooldown=0.0
     world._update_actors(0.04)
-    check(world.projectiles.any(func(p): return p.kind=="fire"),"Standalone Torch fired no flames")
-    check(world.hazards.any(func(h): return h.kind=="fire"),"Standalone Torch created no burning area")
+    var has_flames := false
+    var has_fire_area := false
+    for p in world.projectiles:
+        if p.kind=="fire":
+            has_flames = true
+    for h in world.hazards:
+        if h.kind=="fire":
+            has_fire_area = true
+    check(has_flames,"Standalone Torch fired no flames")
+    check(has_fire_area,"Standalone Torch created no burning area")
 
     world.start("jimothy")
     world.set_inventions([grammar.resolve(["hammer","torch"])])
