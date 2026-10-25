@@ -1,0 +1,29 @@
+name: Godot parity checks
+on:
+  pull_request:
+  push:
+    branches:
+      - "godot/**"
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.7.2
+          use-dotnet: false
+      - name: Import project and parse scripts
+        run: godot --headless --path . --editor --import --quit
+      - name: Test procedural grammar
+        run: godot --headless --path . --script res://tests/test_grammar.gd
+      - name: Test migration parity
+        run: godot --headless --path . --script res://tests/test_parity.gd
+      - name: Smoke test full scene
+        shell: bash
+        run: |
+          set -o pipefail
+          godot --headless --path . --quit-after 120 2>&1 | tee godot.log
+          if grep -E '(SCRIPT ERROR:|Parse Error:|Failed to load script|Invalid access to property|Invalid call\.)' godot.log; then
+            exit 1
+          fi
