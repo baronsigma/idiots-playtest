@@ -1,8 +1,8 @@
-; IDIOTS! — Godot migration vertical slice
+; IDIOTS! — Godot alpha.3 continuous-play parity rebuild
 config_version=5
 
 [application]
-config/name="IDIOTS! - Godot Alpha 0.0.8.2"
+config/name="IDIOTS! - Godot Alpha 0.0.8.3"
 run/main_scene="res://scenes/Main.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/description="Continuous absurd autobattler with procedural engineering"
