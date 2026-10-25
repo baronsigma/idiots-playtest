@@ -145,7 +145,7 @@ func set_inventions(recipes: Array) -> void:
             maintained["recipe"] = recipe
             next.append(maintained)
         else:
-            next.append({"key":key, "recipe":recipe, "pos":hero_position + Vector2(rng.randf_range(-90.0,90.0),rng.randf_range(-64.0,64.0)), "target":Vector2.ZERO, "cooldown":rng.randf_range(0.7,1.6), "wander":0.0, "phase":rng.randf_range(0.0,9.0), "damage":0.0, "casts":0})
+            next.append({"key":key, "recipe":recipe, "pos":hero_position + Vector2(rng.randf_range(-90.0,90.0),rng.randf_range(-64.0,64.0)), "target":Vector2.ZERO, "cooldown":rng.randf_range(0.7,1.6), "wander":0.0, "phase":rng.randf_range(0.0,9.0), "damage":0.0, "casts":0, "trail_clock":0.0,"peck_clock":0.3,"pulse":0.0})
     actors = next
     updated.emit()
 
@@ -246,9 +246,12 @@ func _spark(pos: Vector2, color: Color, count: int) -> void:
         sparks.append({"pos":pos, "vel":Vector2(rng.randf_range(-75.0,75.0),rng.randf_range(-85.0,45.0)), "life":rng.randf_range(0.15,0.48), "color":color})
 
 func _emit_bees(pos: Vector2, recipe: Dictionary) -> void:
-    for i in range(5):
+    for i in range(6):
         if bees.size()>=MAX_BEES:return
-        bees.append({"pos":pos+Vector2(rng.randf_range(-12.0,12.0),rng.randf_range(-12.0,12.0)), "life":rng.randf_range(4.5,7.0), "cooldown":rng.randf_range(0.1,0.4), "mods":recipe.mods, "phase":rng.randf_range(0.0,6.3)})
+        bees.append({"pos":pos+Vector2(rng.randf_range(-15.0,15.0),rng.randf_range(-15.0,15.0)),
+            "life":rng.randf_range(4.7,7.2),"cooldown":rng.randf_range(0.2,0.5),
+            "mods":recipe.mods,"phase":rng.randf_range(0.0,6.3),
+            "orbit":rng.randf_range(-1.0,1.0),"wing":rng.randf_range(0.0,6.3)})
     _spark(pos, color_gold, 4)
 
 func _make_hazard(pos: Vector2, kind: String, radius: float = 19.0, generation: int = 0, power: float = 1.0) -> void:
@@ -502,6 +505,9 @@ func _update_actors(dt: float) -> void:
     for a in actors:
         var recipe: Dictionary = a.recipe
         a.phase = float(a.phase)+dt
+        a.pulse = maxf(0.0,float(a.pulse)-dt)
+        a.trail_clock = float(a.trail_clock)-dt
+        a.peck_clock = float(a.peck_clock)-dt
         a.cooldown = float(a.cooldown)-dt
         a.wander = float(a.wander)-dt
         var host: String = str(recipe.host)
@@ -519,8 +525,18 @@ func _update_actors(dt: float) -> void:
                 velocity *= 1.33
             a.pos += vel * velocity*dt
         else:
-            # Stationary emplacements stay independent; never attach to hero each frame.
+            # Stationary emplacements still animate, rather than teleport to hero.
             pass
+        # Chicken carriers react physically, leaving a trail and pecking in passing.
+        if host=="chicken":
+            var victim: int = _nearest_enemy(a.pos)
+            if victim>=0 and a.pos.distance_to(enemies[victim].pos)<30.0 and a.peck_clock<=0.0:
+                a.peck_clock = 1.25
+                _hurt_enemy(victim,7.0,"fire" if recipe.mods.fire else "poison" if recipe.mods.poison else "physical")
+                _spark(a.pos,color_gold,5)
+            if a.trail_clock<=0.0 and (recipe.mods.fire or recipe.mods.poison or recipe.mods.ice):
+                a.trail_clock = 0.78
+                _make_hazard(a.pos,"fire" if recipe.mods.fire else "poison" if recipe.mods.poison else "ice",17.0)
         var away: Vector2 = a.pos - hero_position
         if away.length()<38.0:
             a.pos += (away.normalized() if away.length()>0.1 else Vector2.RIGHT) * 54.0*dt
@@ -538,6 +554,8 @@ func _update_actors(dt: float) -> void:
         if a.cooldown<=0.0:
             a.cooldown = (3.0 if recipe.mods.bees else 2.15) * (0.78 if recipe.mods.coffee else 1.0)
             a.casts = int(a.casts)+1
+            a.pulse = 0.32
+            _impact(a.pos,"fire" if recipe.mods.fire else "poison" if recipe.mods.poison else "ice" if recipe.mods.ice else "arcane",false)
             var near := _nearest_enemy(a.pos)
             if recipe.mods.bees:
                 _emit_bees(a.pos, recipe)
@@ -662,10 +680,13 @@ func _update_bees(dt: float) -> void:
         b.phase += dt*12.0
         var near := _nearest_enemy(b.pos)
         if near>=0:
-            b.pos += (enemies[near].pos-b.pos).normalized()*145.0*dt
+            var direction: Vector2 = (enemies[near].pos-b.pos).normalized()
+            var orbit: Vector2 = Vector2(-direction.y,direction.x)*sin(float(b.phase)*1.1+float(b.orbit))*0.22
+            b.pos += (direction+orbit).normalized()*160.0*dt
             if b.pos.distance_to(enemies[near].pos)<16.0 and b.cooldown<=0.0:
                 var kind := "fire" if b.mods.fire else "ice" if b.mods.ice else "poison" if b.mods.poison else "physical"
                 _hurt_enemy(near,8.0,kind)
+                _spark(b.pos,color_fire if kind=="fire" else color_poison if kind=="poison" else color_gold,2)
                 b.cooldown = 0.52
                 b.life -= 1.2
         if b.life<=0.0:bees.remove_at(i)
