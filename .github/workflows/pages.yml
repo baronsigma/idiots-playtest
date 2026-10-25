@@ -2,7 +2,7 @@ name: Publish IDIOTS! Godot alpha.4 browser playtest
 on:
   workflow_dispatch:
   push:
-    branches: [godot/alpha-3-parity-rebuild]
+    branches: [main]
 permissions:
   contents: read
   pages: write
