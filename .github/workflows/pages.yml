@@ -1,8 +1,8 @@
-name: Publish playable IDIOTS! test build
+name: Publish IDIOTS! Godot alpha.4 browser playtest
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [godot/alpha-3-parity-rebuild]
 permissions:
   contents: read
   pages: write
