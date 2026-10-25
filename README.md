@@ -1,12 +1,26 @@
-# IDIOTS! — Godot v0.0.8-alpha.4 engineering parity candidate
+# IDIOTS! — Godot v0.0.8-alpha.5 / Feel Restoration
 
-> Draft migration work. **Godot runtime and browser export are not yet verified.** Do not treat this branch as a stable playable release.
+This is a **focused first-90-seconds combat and visual experiment**, based on the Godot alpha.4 branch, not a new gameplay redesign.
 
-The primary reference is the original **continuous HTML alpha.6.1** (in `reference/`), not the discarded five-shift or Test Lab experiments.
+What's deliberately different from alpha.4:
+- Earlier and more varied enemy arrivals; meaningful encounters within the first minute.
+- Bigger class HP pools and more distinct Jimothy / Kram / Bog attack patterns.
+- Wall-aware, separation-based autonomous movement rather than walking straight into a boundary.
+- Archer projectiles that are visible and can be missed, instead of invisible instant damage.
+- Visible melee sweep arcs, hit flares, stagger/knockback and restrained impact rings.
+- Freer chicken movement with fire/poison/ice trails and direct peck attacks; faster wing-animated bee swarms.
+- Layered, pixel-quantized village environments, silhouettes, outlines and cleaner retro UI.
+- Diagnostic first-90-second combat checks and counters (`tests/test_feel.gd`).
 
-This branch retains the continuous Godot combat loop while rebuilding the HTML content and engineering systems: timed discoveries, two weapon evolutions, Renown starters, specialist enemies, **20 tagged parts**, multiple named inventions and distinct lightning, ice, grease, undead, magnetic and healing mechanics. Animated bees, saucers, expanding hazards and a bounded one-generation fire/poison/spore spread are retained. Core six-slot connections and live inventions remain active.
+Core live engineering, 20 parts, Renown, weapon evolutions, and the long continuous expedition remain intact. Nothing from the rejected five-shift or laboratory experiments was imported.
 
-Read [MIGRATION_PARITY.md](MIGRATION_PARITY.md) for exact feature gaps and migration order. This is not full parity yet.
+**Goal:** improve responsiveness and the entertaining chaos of the first ninety seconds compared to the HTML alpha. This version is not a claim of full visual or content parity.
+
+Automated tests in the PR verify GDScript grammar, engineering effects, scene import, short-term pace and Web export. A successful export is not proof of subjective fun. Please compare it directly with the HTML v0.7.3 reference and report where Godot still feels weaker.
+
+See [MIGRATION_PARITY.md](MIGRATION_PARITY.md) for remaining gaps.
+
+---
 
 ## Run / verify
 
