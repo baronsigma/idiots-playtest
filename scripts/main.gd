@@ -125,10 +125,10 @@ func _button(parent: Control, words: String, at: Vector2, dimensions: Vector2, c
     b.add_theme_font_size_override("font_size",16 if prominent else 14)
     b.add_theme_color_override("font_color",INK)
     var style := StyleBoxFlat.new()
-    style.bg_color = Color("#4c675a") if prominent else Color("#293a4a")
-    style.border_color = Color("#9cca9d") if prominent else Color("#647b8e")
-    style.set_border_width_all(2)
-    style.set_corner_radius_all(5)
+    style.bg_color = Color("#496b52") if prominent else Color("#243844")
+    style.border_color = Color("#b9d49c") if prominent else Color("#57707a")
+    style.set_border_width_all(3)
+    style.set_corner_radius_all(1)
     b.add_theme_stylebox_override("normal",style)
     var hover: StyleBoxFlat = style.duplicate() as StyleBoxFlat
     hover.bg_color = Color("#678b75") if prominent else Color("#405972")
@@ -173,11 +173,14 @@ func _meter(parent: Control, at: Vector2, dimensions: Vector2, foreground: Color
     return p
 
 func _build_hud() -> void:
-    _rect(ui_root,Vector2.ZERO,Vector2(827,93),Color("#182331"))
-    _rect(ui_root,Vector2(823,0),Vector2(329,648),Color("#14212d"))
+    _rect(ui_root,Vector2.ZERO,Vector2(827,93),Color("#111c24"))
+    _rect(ui_root,Vector2(0,89),Vector2(826,4),Color("#82704c"))
+    _rect(ui_root,Vector2(18,9),Vector2(7,70),Color("#c8a56d"))
+    _rect(ui_root,Vector2(823,0),Vector2(329,648),Color("#152029"))
+    _rect(ui_root,Vector2(830,4),Vector2(315,82),Color("#22323d"))
     _rect(ui_root,Vector2(822,0),Vector2(3,648),Color("#9c815a"))
-    title_label = _text(ui_root,"IDIOTS!",Vector2(20,9),30,GOLD,218,42)
-    _text(ui_root,"EARLY ALPHA  ·  GODOT",Vector2(20,49),11,MUTED,205)
+    title_label = _text(ui_root,"IDIOTS!",Vector2(32,11),34,GOLD,218,42)
+    _text(ui_root,"ALPHA 0.0.8.5  ·  FEEL RESTORATION",Vector2(31,56),11,MUTED,250)
     hp_label = _text(ui_root,"HP",Vector2(244,10),14,INK,286)
     hp_bar = _meter(ui_root,Vector2(244,38),Vector2(285,17),Color("#d56564"))
     _text(ui_root,"CONCERN",Vector2(553,10),12,GOLD,175)
@@ -191,9 +194,9 @@ func _build_hud() -> void:
     _button(ui_root,"FULLSCREEN [F11]",Vector2(396,614),Vector2(190,32),_fullscreen)
     _button(ui_root,"RESTART",Vector2(594,614),Vector2(112,32),_restart)
     _text(ui_root,"IDIOT ENGINEERING",Vector2(839,10),23,GOLD,299,31)
-    _text(ui_root,"Build something regrettable. Change it live.",Vector2(840,44),12,MUTED,310)
+    _text(ui_root,"Build it. Break it. Blame the chicken.",Vector2(840,48),12,MUTED,310)
     _rect(ui_root,Vector2(834,87),Vector2(308,3),Color("#846b50"))
-    _text(ui_root,"6 PARTS  ·  CONNECT THE WIRES",Vector2(843,100),13,INK,300)
+    _text(ui_root,"SIX PARTS  •  CONNECT WIRES",Vector2(843,100),13,INK,300)
 
 func _build_engineering() -> void:
     var xs := [845.0,946.0,1047.0]
@@ -242,20 +245,24 @@ func _build_menu() -> void:
     hero_menu = Control.new()
     hero_menu.size = BASE_SIZE
     ui_root.add_child(hero_menu)
-    _text(hero_menu,"IDIOTS!",Vector2(345,32),64,GOLD,520,85)
-    _text(hero_menu,"A village disaster in progress.",Vector2(376,112),20,MUTED,480)
+    _rect(hero_menu,Vector2(70,21),Vector2(1012,142),Color("#172630"))
+    _rect(hero_menu,Vector2(70,160),Vector2(1012,4),GOLD)
+    _text(hero_menu,"IDIOTS!",Vector2(366,35),64,GOLD,520,85)
+    _text(hero_menu,"The village regrets everything.",Vector2(380,115),19,MUTED,480)
     _text(hero_menu,"CHOOSE YOUR IDIOT",Vector2(435,172),19,INK,340)
     var heroes := ["jimothy","kram","bog"]
     var blurbs := ["Went on a hike once. It was a Tuesday.","Found a slightly magical twig. Pew pew.","Don't you dare make fun of his helmet!"]
     for i in range(3):
         var x: float = 112.0+float(i)*317.0
+        _rect(hero_menu,Vector2(x-3,227),Vector2(306,251),Color("#826f50"))
         _rect(hero_menu,Vector2(x,230),Vector2(300,245),Color("#1e3040"))
+        _rect(hero_menu,Vector2(x+12,241),Vector2(276,127),Color("#2a3e43"))
         _sprite(hero_menu,heroes[i],Vector2(x+97,246),Vector2(106,118))
         _text(hero_menu,heroes[i].to_upper(),Vector2(x+20,365),23,GOLD,255)
         var blurb: Label = _text(hero_menu,blurbs[i],Vector2(x+20,396),13,MUTED,265,36)
         blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
         _button(hero_menu,"PLAY AS "+heroes[i].to_upper(),Vector2(x+18,439),Vector2(265,35),_select_hero.bind(heroes[i]),true)
-    _text(hero_menu,"Continuous combat  ·  Procedural inventions  ·  Very poor decisions",Vector2(228,526),16,INK,735)
+    _text(hero_menu,"CONTINUOUS COMBAT  /  PROCEDURAL IDIOCY  /  NO REFUNDS",Vector2(235,513),16,INK,770)
     meta_label = _text(hero_menu,"",Vector2(330,555),15,GOLD,580)
     _button(hero_menu,"RENOWN: +10 HP",Vector2(331,594),Vector2(222,37),_buy_meta.bind("hp"))
     _button(hero_menu,"RENOWN: +8 GOLD",Vector2(566,594),Vector2(222,37),_buy_meta.bind("purse"))
