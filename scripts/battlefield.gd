@@ -56,6 +56,9 @@ var hero_direction := Vector2.RIGHT
 var hero_stride := 0.0
 var hero_attack_pose := 0.0
 var enemy_spawn_total := 0
+var hero_attack_total := 0
+var hero_damage_taken := 0.0
+var hostile_arrow_total := 0
 var max_enemies_observed := 0
 var screen_kick := 0.0
 var encounter_banner := ""
@@ -109,6 +112,9 @@ func start(hero_id: String, hp_boost: int = 0, gold_boost: int = 0) -> void:
     hero_attack_pose = 0.0
     hero_direction = Vector2.RIGHT
     enemy_spawn_total = 0
+    hero_attack_total = 0
+    hero_damage_taken = 0.0
+    hostile_arrow_total = 0
     max_enemies_observed = 0
     screen_kick = 0.0
     encounter_banner = "THE VILLAGE HAS NOTICED"
@@ -387,6 +393,7 @@ func _update_hero(dt: float) -> void:
         return
     hero_cooldown = (0.72 if hero_type=="jimothy" else 0.88 if hero_type=="bog" else 0.79)
     hero_attack_pose = 0.19
+    hero_attack_total += 1
     var damage: float = float(HEROES[hero_type].damage)+float(weapon_level)*5.0
     var damage_kind: String = "fire" if weapon_heated>0 else "physical"
     if hero_type=="kram":
@@ -462,6 +469,7 @@ func _hostile_arrow(origin: Vector2, destination: Vector2, power: float) -> void
         return
     var direction: Vector2 = (destination-origin).normalized()
     hostile_shots.append({"pos":origin,"vel":direction*195.0,"damage":power,"life":2.4})
+    hostile_arrow_total += 1
     _spark(origin,Color("#e3b992"),3)
 
 func _update_hostile_shots(dt: float) -> void:
@@ -493,6 +501,7 @@ func _damage_hero(raw_damage: float) -> void:
         armor_factor *= 0.79
     hp = maxf(0.0, hp - raw_damage * armor_factor)
     hero_flash = 0.24
+    hero_damage_taken += raw_damage * armor_factor
     _impact(hero_position,"hurt",false)
     _spark(hero_position, Color("#e76d70"), 5)
     updated.emit()
@@ -909,4 +918,6 @@ func stage() -> String:
     return "THE MAYOR"
 
 func report() -> Dictionary:
-    return {"hp":hp, "max_hp":max_hp, "gold":gold, "kills":kills, "concern":concern, "time":clock, "stage":stage(), "kits":kits, "enemies":enemies.size(), "actors":actors.size(), "weapon_level":weapon_level, "discovered":discovery_index}
+    return {"hp":hp, "max_hp":max_hp, "gold":gold, "kills":kills, "concern":concern, "time":clock, "stage":stage(), "kits":kits, "enemies":enemies.size(), "actors":actors.size(), "weapon_level":weapon_level, "discovered":discovery_index,
+        "spawn_total":enemy_spawn_total, "max_enemies":max_enemies_observed,
+        "hero_attacks":hero_attack_total, "damage_taken":hero_damage_taken}
