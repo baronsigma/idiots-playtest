@@ -24,7 +24,7 @@ func _run() -> void:
     main.world.paused = true
     main.world.discovery_due.emit(0)
     check(main.reward_overlay.visible, "Discovery appears")
-    var before := main.owned_parts.size()
+    var before: int = int(main.owned_parts.size())
     main._select_reward(0)
     check(main.owned_parts.size() == before + 1, "Part discovery unlocks a part")
     check(not main.reward_overlay.visible and not main.world.paused, "Reward closes and combat resumes")
