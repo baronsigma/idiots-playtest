@@ -1,6 +1,22 @@
-# IDIOTS! — Godot v0.0.8-alpha.2
+# IDIOTS! — Godot v0.0.8-alpha.3 parity branch
 
-A Godot 4.7.2 GDScript migration slice based on the surviving **alpha.6.1** continuous-battle prototype. It is not a full campaign port.
+> Draft migration work. **Godot runtime and browser export are not yet verified.** Do not treat this branch as a stable playable release.
+
+The primary reference is the original **continuous HTML alpha.6.1** (in `reference/`), not the discarded five-shift or Test Lab experiments.
+
+This branch retains the Godot v0.0.8-alpha.2 battle and procedural combination grammar while beginning to restore the HTML game's content loop: timed part discoveries, two in-run signature weapon evolutions, saved Renown for capped HP/gold preparation, and basic specialist enemies. Core six-slot connections and live inventions remain active.
+
+Read [MIGRATION_PARITY.md](MIGRATION_PARITY.md) for exact feature gaps and migration order. This is not full parity yet.
+
+## Run / verify
+
+Open `project.godot` in Godot 4.7.2 and press F5. Use the same keyboard controls as alpha.2: Space pauses, F uses a field kit, F11 toggles fullscreen. Parts unlock through mid-run discovery prompts; after choosing, click their inventory tiles to place them. Renown upgrades appear on the character-select screen after returning from a run.
+
+Automated checks: `godot --headless --path . --script res://tests/test_grammar.gd` and `godot --headless --path . --script res://tests/test_parity.gd`. A GitHub Actions PR workflow attempts import, both tests, and a short scene smoke test. Until these run successfully, the build is **unverified**.
+
+---
+
+## Previous alpha.2 notes
 
 ## Changes since alpha.1 hotfix
 
