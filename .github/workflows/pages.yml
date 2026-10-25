@@ -13,7 +13,7 @@ concurrency:
 jobs:
   export-and-deploy:
     environment:
-      name: github-pages
+      name: alpha-preview
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
