@@ -45,7 +45,8 @@ func _run() -> void:
     expect(world.actors.size() == 1, "Electric circuit not spawned")
     world.actors[0].pos = Vector2(300, 300)
     world.enemies[0].pos = Vector2(312, 300)
-    world._update_actors(4.0)
+    world.actors[0].cooldown = 0.0
+    world._update_actors(0.05)
     expect(world.lightning_arcs.size() > 0, "Electric effect did not draw an arc")
     world._make_hazard(Vector2(310,300),"grease",28.0)
     world._make_hazard(Vector2(305,300),"fire",28.0)
