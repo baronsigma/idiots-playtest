@@ -3,8 +3,18 @@ extends Node2D
 ## persistent battle simulation. The deterministic grammar is unchanged.
 const GrammarScript = preload("res://scripts/grammar.gd")
 const BOARD_LINKS := [[0,1],[1,2],[3,4],[4,5],[0,3],[1,4],[2,5]]
-const PART_IDS := ["goblin","chicken","torch","hive","saucer","ghost","venom","mushroom"]
+const PART_IDS := ["goblin","chicken","torch","hive","saucer","ghost","venom","mushroom","board","battery","grease","bones","paper","boots","hammer","coffee","bandage","magnet","mirror","ice"]
 const BASE_SIZE := Vector2(1152.0,648.0)
+# Shared source sprites until distinct pixel icons for every expanded part are complete.
+const PART_SPRITES := {
+    "board":"stone","battery":"shot","grease":"venom","bones":"ghost",
+    "paper":"stone","boots":"jimothy","hammer":"stone","coffee":"torch",
+    "bandage":"venom","magnet":"saucer","mirror":"ghost","ice":"shot"
+}
+func _part_sprite(id: String) -> Texture2D:
+    var source: String = str(PART_SPRITES.get(id, id))
+    return load("res://assets/sprites/" + source + ".png") as Texture2D
+
 const INK := Color("#f1e7d0")
 const GOLD := Color("#e8bb70")
 const MUTED := Color("#b1c3c8")
@@ -135,7 +145,7 @@ func _sprite(parent: Control, id: String, at: Vector2, dimensions: Vector2) -> T
     var tex := TextureRect.new()
     tex.position = at
     tex.size = dimensions
-    tex.texture = load("res://assets/sprites/"+id+".png")
+    tex.texture = _part_sprite(id)
     tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
     tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
     tex.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -207,13 +217,23 @@ func _build_engineering() -> void:
     recipe_details = _text(ui_root,"Connect parts to create a machine.",Vector2(847,395),12,MUTED,285,56)
     recipe_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     _text(ui_root,"SPARE PARTS  ·  SELECT THEN PLACE",Vector2(843,465),13,GOLD,300)
+    var inventory_scroll := ScrollContainer.new()
+    inventory_scroll.position = Vector2(840, 487)
+    inventory_scroll.size = Vector2(301, 144)
+    inventory_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+    ui_root.add_child(inventory_scroll)
+    var part_grid := GridContainer.new()
+    part_grid.columns = 2
+    part_grid.add_theme_constant_override("h_separation", 4)
+    part_grid.add_theme_constant_override("v_separation", 4)
+    inventory_scroll.add_child(part_grid)
     for i in range(PART_IDS.size()):
         var id: String = PART_IDS[i]
         var label_name: String = str(grammar.parts[id].get("name",id))
-        var tile: Button = _button(ui_root,"",Vector2(841+int(i%2)*151,490+int(i/2)*35),Vector2(145,33),_part_clicked.bind(id))
-        var icon_node := _sprite(tile,id,Vector2(4,3),Vector2(26,27))
-        icon_node.name = "PartSprite"
-        _text(tile,label_name.substr(0,15),Vector2(35,3),12,INK,110,26)
+        var tile: Button = _button(part_grid,"",Vector2.ZERO,Vector2(140,39),_part_clicked.bind(id))
+        tile.custom_minimum_size = Vector2(140, 39)
+        _sprite(tile,id,Vector2(4,3),Vector2(28,31))
+        _text(tile,label_name.substr(0,14),Vector2(35,3),12,INK,102,26)
         inventory_buttons[id]=tile
     selection_label = _text(ui_root,"Choose a part, then an empty slot",Vector2(843,634),11,MUTED,308)
 
@@ -340,7 +360,7 @@ func _refresh_board() -> void:
     for i in range(6):
         var id: String = str(slot_ids[i])
         slot_icons[i].visible = id!=""
-        slot_icons[i].texture=load("res://assets/sprites/"+id+".png") if id!="" else null
+        slot_icons[i].texture=_part_sprite(id) if id!="" else null
         slot_names[i].text=str(grammar.parts[id].name).substr(0,10).to_upper() if id!="" else "+ EMPTY"
         slot_buttons[i].modulate=GOLD if id==chosen and chosen!="" else Color.WHITE
     for i in range(wires.size()):
