@@ -7,7 +7,9 @@ signal discovery_due(tier: int)
 signal evolution_due(tier: int)
 
 const ARENA := Rect2(18.0, 95.0, 799.0, 525.0)
-const MAX_ENEMIES := 36
+const MAX_ENEMIES := 48
+const MAX_HOSTILE_SHOTS := 22
+const MAX_HIT_FLASHES := 45
 const MAX_BEES := 44
 const MAX_SKELETONS := 12
 const MAX_ARCS := 48
@@ -17,9 +19,9 @@ const TOTAL_TIME := 390.0
 const DISCOVERY_TIMES := [32.0, 75.0, 130.0, 192.0, 255.0, 324.0]
 const EVOLUTION_TIMES := [98.0, 294.0]
 const HEROES := {
-    "jimothy": {"name":"Jimothy", "hp":130.0, "speed":103.0, "range":54.0, "damage":15.0},
-    "kram": {"name":"Kram", "hp":103.0, "speed":112.0, "range":214.0, "damage":12.0},
-    "bog": {"name":"Bog", "hp":163.0, "speed":96.0, "range":57.0, "damage":17.0}
+    "jimothy": {"name":"Jimothy", "hp":226.0, "speed":115.0, "range":64.0, "damage":24.0},
+    "kram": {"name":"Kram", "hp":179.0, "speed":107.0, "range":191.0, "damage":21.0},
+    "bog": {"name":"Bog", "hp":275.0, "speed":105.0, "range":68.0, "damage":28.0}
 }
 var sprites: Dictionary = {}
 var rng := RandomNumberGenerator.new()
@@ -46,6 +48,18 @@ var lightning_arcs: Array = []
 var hero_ward := 0.0
 var hazards: Array = []
 var sparks: Array = []
+var hostile_shots: Array = []
+var attack_waves: Array = []
+var impact_rings: Array = []
+var hero_flash := 0.0
+var hero_direction := Vector2.RIGHT
+var hero_stride := 0.0
+var hero_attack_pose := 0.0
+var enemy_spawn_total := 0
+var max_enemies_observed := 0
+var screen_kick := 0.0
+var encounter_banner := ""
+var encounter_banner_time := 0.0
 var spawn_clock := 0.0
 var notice_clock := 0.0
 var boss_spawned := false
@@ -87,6 +101,18 @@ func start(hero_id: String, hp_boost: int = 0, gold_boost: int = 0) -> void:
     hero_ward = 0.0
     hazards.clear()
     sparks.clear()
+    hostile_shots.clear()
+    attack_waves.clear()
+    impact_rings.clear()
+    hero_flash = 0.0
+    hero_stride = 0.0
+    hero_attack_pose = 0.0
+    hero_direction = Vector2.RIGHT
+    enemy_spawn_total = 0
+    max_enemies_observed = 0
+    screen_kick = 0.0
+    encounter_banner = "THE VILLAGE HAS NOTICED"
+    encounter_banner_time = 3.0
     actors.clear()
     spawn_clock = 0.0
     boss_spawned = false
@@ -100,7 +126,7 @@ func start(hero_id: String, hp_boost: int = 0, gold_boost: int = 0) -> void:
     active = true
     paused = false
     ended = false
-    for i in range(5):
+    for i in range(9):
         _spawn_enemy(false)
     notice.emit("The village has lodged a formal complaint.")
     updated.emit()
@@ -154,16 +180,22 @@ func _spawn_enemy(elite: bool, force_boss: bool = false) -> void:
     if side == 2: pos = Vector2(rng.randf_range(ARENA.position.x+20,ARENA.end.x-20),ARENA.position.y+18)
     if side == 3: pos = Vector2(rng.randf_range(ARENA.position.x+20,ARENA.end.x-20),ARENA.end.y-18)
     var boss := force_boss
-    var tax := boss or elite or (clock>55.0 and rng.randf()<0.10 + concern*0.0012)
-    var archer := not boss and clock>95.0 and concern>20.0 and rng.randf()<0.17
-    var sprinter := not boss and clock>60.0 and rng.randf()<0.13
-    var toughness := 1.0 + clock / 450.0
-    var base_hp := 85.0 if tax else 37.0
-    var base_dmg := 12.0 if tax else 5.5
+    var tax: bool = boss or elite or (clock>35.0 and rng.randf()<0.065 + concern*0.001)
+    var archer: bool = not boss and clock>44.0 and rng.randf()<0.13 + concern*0.0006
+    var sprinter: bool = not boss and clock>22.0 and rng.randf()<0.16
+    var toughness := 1.0 + clock / 400.0
+    var base_hp := 91.0 if tax else (29.0 if sprinter else 47.0 if archer else 35.0)
+    var base_dmg := 13.5 if tax else (6.0 if sprinter else 7.2 if archer else 6.1)
     if boss:
         base_hp = 1250.0
         base_dmg = 24.0
-    enemies.append({"pos":pos, "hp":base_hp*toughness, "max_hp":base_hp*toughness, "damage":base_dmg, "speed":(37.0 if tax else 58.0)+(35.0 if sprinter else 0.0)+clock*0.018, "cooldown":rng.randf_range(0.0,0.9), "tax":tax, "boss":boss, "archer":archer, "sprinter":sprinter, "burn":0.0, "poison":0.0, "stun":0.0, "flash":0.0})
+    enemies.append({"pos":pos, "hp":base_hp*toughness, "max_hp":base_hp*toughness, "damage":base_dmg,
+        "speed":(45.0 if tax else 53.0 if archer else 94.0 if sprinter else 65.0)+clock*0.018,
+        "cooldown":rng.randf_range(0.5,1.5),"tax":tax,"boss":boss,"archer":archer,"sprinter":sprinter,
+        "burn":0.0,"poison":0.0,"stun":0.0,"flash":0.0,"knock":Vector2.ZERO,"stride":rng.randf_range(0.0,6.0),
+        "kind":"boss" if boss else "brute" if tax else "archer" if archer else "sprinter" if sprinter else "rat" if rng.randf()<0.58 else "goblin"})
+    enemy_spawn_total += 1
+    max_enemies_observed = maxi(max_enemies_observed,enemies.size())
     if boss:
         notice.emit("THE MAYOR HAS REQUESTED YOUR IMMEDIATE DISCONTINUATION.")
 
@@ -183,7 +215,12 @@ func _hurt_enemy(index: int, damage: float, kind: String = "physical") -> void:
     var e: Dictionary = enemies[index]
     var dealt := damage * (0.82 if e.tax else 1.0)
     e.hp = float(e.hp)-dealt
-    e.flash = 0.13
+    e.flash = 0.19
+    if damage > 0.0:
+        var knock_dir: Vector2 = (e.pos-hero_position).normalized()
+        e.knock += knock_dir * minf(105.0, 13.0 + dealt*0.65)
+        if dealt >= 18.0:
+            _impact(e.pos,kind,dealt >= 35.0)
     if kind == "fire":e.burn = maxf(float(e.burn),2.6)
     if kind == "poison":e.poison = maxf(float(e.poison),3.5)
     if kind == "ice":e.stun = maxf(float(e.stun),0.38)
@@ -194,7 +231,7 @@ func _hurt_enemy(index: int, damage: float, kind: String = "physical") -> void:
         enemies.remove_at(index)
         kills += 1
         gold += 4 if e.tax else 1
-        concern = minf(100.0,concern + (0.35 if e.tax else 0.17))
+        concern = minf(100.0,concern + (0.78 if e.tax else 0.45))
         if was_boss:
             ended = true
             active = false
@@ -231,13 +268,27 @@ func _process(delta: float) -> void:
     clock += dt
     hero_ward = maxf(0.0, hero_ward - dt)
     concern = minf(100.0, concern + dt * (0.035 + clock*0.0007))
+    hero_flash = maxf(0.0,hero_flash-dt)
+    hero_attack_pose = maxf(0.0,hero_attack_pose-dt)
+    hero_stride += dt*9.0
+    screen_kick = maxf(0.0,screen_kick-dt*12.0)
+    encounter_banner_time = maxf(0.0,encounter_banner_time-dt)
     _update_hero(dt)
     _update_enemies(dt)
+    _update_hostile_shots(dt)
     _update_actors(dt)
     _update_projectiles(dt)
     _update_bees(dt)
     _update_skeletons(dt)
     _update_hazards(dt)
+    for i in range(attack_waves.size()-1,-1,-1):
+        attack_waves[i].life = float(attack_waves[i].life)-dt
+        if attack_waves[i].life<=0.0:
+            attack_waves.remove_at(i)
+    for i in range(impact_rings.size()-1,-1,-1):
+        impact_rings[i].life = float(impact_rings[i].life)-dt
+        if impact_rings[i].life<=0.0:
+            impact_rings.remove_at(i)
     if ended:
         queue_redraw()
         return
@@ -267,9 +318,11 @@ func _process(delta: float) -> void:
     if clock<TOTAL_TIME-12.0:
         spawn_clock -= dt
         if spawn_clock<=0.0:
-            spawn_clock = maxf(0.62, 2.3 - clock*0.003 - concern*0.006)
-            _spawn_enemy(rng.randf() < 0.06 + concern*0.003)
-            if concern>68.0 and rng.randf()<0.16:
+            spawn_clock = maxf(0.64, 1.15-clock*0.0006-concern*0.0022)
+            _spawn_enemy(rng.randf() < 0.06 + concern*0.002)
+            if clock>40.0 and rng.randf()<(0.18 if concern>30.0 else 0.08):
+                _spawn_enemy(false)
+            if concern>45.0 and rng.randf()<0.25:
                 _spawn_enemy(true)
     if clock>TOTAL_TIME+46.0 and boss_spawned and not ended:
         ended = true
@@ -280,73 +333,153 @@ func _process(delta: float) -> void:
 func _update_hero(dt: float) -> void:
     dash_cooldown -= dt
     hero_cooldown -= dt
-    var nearest := _nearest_enemy(hero_position)
-    if nearest<0:return
+    var nearest: int = _nearest_enemy(hero_position)
+    if nearest < 0:
+        return
     var e: Dictionary = enemies[nearest]
-    var delta_pos: Vector2 = e.pos-hero_position
-    var dist := delta_pos.length()
-    var ideal_range: float = HEROES[hero_type].range
-    var speed: float = HEROES[hero_type].speed
-    if hero_type == "kram" and dist < 100.0:
-        hero_position -= delta_pos.normalized()*speed*dt
-    elif dist>ideal_range*0.75:
-        hero_position += delta_pos.normalized()*speed*dt
-    if hero_type=="bog" and dash_cooldown<=0.0 and dist>60.0:
-        hero_position += delta_pos.normalized()*minf(55.0,dist*0.33)
-        dash_cooldown = 6.0
-        _spark(hero_position, color_gold,7)
-    hero_position = Vector2(clampf(hero_position.x, ARENA.position.x+20.0,ARENA.end.x-20.0), clampf(hero_position.y,ARENA.position.y+20.0,ARENA.end.y-18.0))
-    if hero_cooldown<=0.0 and dist<ideal_range+12.0:
-        hero_cooldown = 0.78 if hero_type!="kram" else 0.94
-        var damage := float(HEROES[hero_type].damage) + float(weapon_level) * 5.0
-        var kind := "fire" if weapon_heated > 0 else "physical"
-        if hero_type == "kram":
-            _projectile(hero_position,e.pos,"fire" if weapon_heated > 0 else "arcane",damage)
-            for n in range(weapon_split):
-                _projectile(hero_position,e.pos + Vector2(28.0 * (1 if n % 2 == 0 else -1), -29.0), "arcane",damage * 0.55)
+    var toward: Vector2 = e.pos-hero_position
+    var dist: float = toward.length()
+    var forward: Vector2 = toward.normalized()
+    var ideal_range: float = float(HEROES[hero_type].range)
+    var speed: float = float(HEROES[hero_type].speed)
+    var steer := Vector2.ZERO
+    if hero_type == "kram":
+        if dist < 125.0:
+            steer -= forward*1.5
+        elif dist > ideal_range*0.87:
+            steer += forward
         else:
-            for j in range(enemies.size()-1,-1,-1):
-                if hero_position.distance_to(enemies[j].pos) < 68.0 + float(weapon_wide) * 21.0:
-                    _hurt_enemy(j,damage*(0.82 if j!=nearest else 1.0),kind)
-            _spark(e.pos,color_gold,4)
+            steer += Vector2(-forward.y,forward.x)*0.44
+    elif dist > ideal_range*0.68:
+        steer += forward
+    else:
+        steer += Vector2(-forward.y,forward.x)*0.20
+    # Avoid stacked enemies and prevent melee heroes from sticking to arena edges.
+    for foe in enemies:
+        var gap: Vector2 = hero_position-foe.pos
+        var separation: float = gap.length()
+        if separation > 0.1 and separation < (58.0 if hero_type=="kram" else 29.0):
+            steer += gap.normalized()*(0.75 if hero_type=="kram" else 0.46)
+    var margin := 78.0
+    if hero_position.x < ARENA.position.x+margin:
+        steer.x += 1.25
+    if hero_position.x > ARENA.end.x-margin:
+        steer.x -= 1.25
+    if hero_position.y < ARENA.position.y+margin:
+        steer.y += 1.25
+    if hero_position.y > ARENA.end.y-margin:
+        steer.y -= 1.25
+    if steer.length() > 0.08:
+        var velocity: Vector2 = steer.normalized()*speed
+        hero_position += velocity*dt
+        hero_direction = velocity.normalized()
+    if hero_type=="bog" and dash_cooldown<=0.0 and dist>70.0 and dist<270.0:
+        hero_position += forward * minf(74.0,dist*0.32)
+        dash_cooldown = 5.5
+        _impact(hero_position,"physical",true)
+        _spark(hero_position,color_gold,12)
+    hero_position = Vector2(clampf(hero_position.x,ARENA.position.x+24.0,ARENA.end.x-24.0),
+        clampf(hero_position.y,ARENA.position.y+24.0,ARENA.end.y-20.0))
+    if hero_cooldown > 0.0 or dist > ideal_range+15.0:
+        return
+    hero_cooldown = (0.72 if hero_type=="jimothy" else 0.88 if hero_type=="bog" else 0.79)
+    hero_attack_pose = 0.19
+    var damage: float = float(HEROES[hero_type].damage)+float(weapon_level)*5.0
+    var damage_kind: String = "fire" if weapon_heated>0 else "physical"
+    if hero_type=="kram":
+        _projectile(hero_position,e.pos,"fire" if weapon_heated>0 else "arcane",damage)
+        for n in range(weapon_split):
+            _projectile(hero_position,e.pos+Vector2(25.0 if n%2==0 else -25.0,-29.0),
+                "arcane",damage*0.55)
+        _impact(hero_position,"arcane",false)
+    else:
+        var reach: float = 72.0+float(weapon_wide)*21.0
+        # The readable sweep is tied to actual melee reach, not a disconnected decoration.
+        attack_waves.append({"pos":hero_position,"angle":forward.angle(),"radius":reach,
+            "life":0.19,"max_life":0.19,"color":color_gold if hero_type=="jimothy" else Color("#abd6fa")})
+        for j in range(enemies.size()-1,-1,-1):
+            if hero_position.distance_to(enemies[j].pos) < reach:
+                _hurt_enemy(j,damage*(0.79 if j!=nearest else 1.0),damage_kind)
+        _spark(e.pos,color_gold,6)
 
 func _update_enemies(dt: float) -> void:
     for i in range(enemies.size()-1,-1,-1):
-        if i>=enemies.size():continue
+        if i >= enemies.size():
+            continue
         var e: Dictionary = enemies[i]
         e.cooldown = float(e.cooldown)-dt
         e.flash = maxf(0.0,float(e.flash)-dt)
+        e.stride = float(e.stride)+dt*6.0
         if e.burn>0.0:
             e.burn -= dt
             e.hp -= dt*4.5
         if e.poison>0.0:
             e.poison -= dt
             e.hp -= dt*3.7
-        if e.hp <= 0.0:
-            _hurt_enemy(i, 0.0)
+        if e.hp<=0.0:
+            _hurt_enemy(i,0.0)
             continue
+        var stagger: Vector2 = e.knock
+        if stagger.length()>0.1:
+            e.pos += stagger*dt*4.0
+            e.knock = stagger.move_toward(Vector2.ZERO,dt*170.0)
         if e.stun>0.0:
             e.stun -= dt
             continue
-        var goal := hero_position
-        if actors.size()>0 and rng.randf()<0.18*dt:
+        var goal: Vector2 = hero_position
+        if actors.size()>0 and rng.randf()<0.12*dt:
             goal = actors[rng.randi_range(0,actors.size()-1)].pos
         var direction: Vector2 = (goal-e.pos).normalized()
         var distance: float = e.pos.distance_to(hero_position)
         if e.archer:
-            if distance < 120.0:
-                e.pos -= direction * float(e.speed) * dt
-            elif distance > 205.0:
-                e.pos += direction * float(e.speed) * dt
-            if distance < 250.0 and e.cooldown <= 0.0:
-                e.cooldown = 2.6
-                _damage_hero(float(e.damage) * 0.72)
-                _spark(hero_position, Color("#d17d69"), 4)
+            if distance<135.0:
+                e.pos -= direction*float(e.speed)*dt
+            elif distance>210.0:
+                e.pos += direction*float(e.speed)*dt
+            if distance<275.0 and e.cooldown<=0.0:
+                e.cooldown = 2.3
+                _hostile_arrow(e.pos,hero_position,float(e.damage)*0.85)
         else:
-            e.pos += direction * float(e.speed) * dt
-            if distance < 24.0 and e.cooldown <= 0.0:
-                e.cooldown = 1.1 if e.tax else 1.45
+            var crowd_push := Vector2.ZERO
+            for other in enemies:
+                if other==e:
+                    continue
+                var space: Vector2 = e.pos-other.pos
+                if space.length_squared() < 360.0 and space.length_squared()>0.01:
+                    crowd_push += space.normalized()*0.37
+            e.pos += (direction+crowd_push).normalized()*float(e.speed)*dt
+            if distance<26.0 and e.cooldown<=0.0:
+                e.cooldown = 1.18 if e.sprinter else 1.32 if e.tax else 1.48
                 _damage_hero(float(e.damage))
+        e.pos = Vector2(clampf(e.pos.x,ARENA.position.x+12.0,ARENA.end.x-12.0),
+            clampf(e.pos.y,ARENA.position.y+17.0,ARENA.end.y-12.0))
+
+func _hostile_arrow(origin: Vector2, destination: Vector2, power: float) -> void:
+    if hostile_shots.size() >= MAX_HOSTILE_SHOTS:
+        return
+    var direction: Vector2 = (destination-origin).normalized()
+    hostile_shots.append({"pos":origin,"vel":direction*195.0,"damage":power,"life":2.4})
+    _spark(origin,Color("#e3b992"),3)
+
+func _update_hostile_shots(dt: float) -> void:
+    for i in range(hostile_shots.size()-1,-1,-1):
+        var shot: Dictionary = hostile_shots[i]
+        shot.pos += shot.vel*dt
+        shot.life -= dt
+        if shot.pos.distance_to(hero_position)<19.0:
+            _damage_hero(float(shot.damage))
+            hostile_shots.remove_at(i)
+            continue
+        if shot.life<=0.0 or not ARENA.grow(20.0).has_point(shot.pos):
+            hostile_shots.remove_at(i)
+
+func _impact(point: Vector2, kind: String, large: bool) -> void:
+    if impact_rings.size() >= MAX_HIT_FLASHES:
+        impact_rings.pop_front()
+    impact_rings.append({"pos":point,"kind":kind,"life":0.29 if large else 0.17,"max_life":0.29 if large else 0.17,
+        "radius":33.0 if large else 19.0})
+    if large and screen_kick < 1.0:
+        screen_kick = 0.9
 
 func _damage_hero(raw_damage: float) -> void:
     if ended:
@@ -356,6 +489,8 @@ func _damage_hero(raw_damage: float) -> void:
     if hero_ward > 0.0:
         armor_factor *= 0.79
     hp = maxf(0.0, hp - raw_damage * armor_factor)
+    hero_flash = 0.24
+    _impact(hero_position,"hurt",false)
     _spark(hero_position, Color("#e76d70"), 5)
     updated.emit()
     if hp <= 0.0:
