@@ -841,6 +841,81 @@ func _outlined_sprite(id: String, pos: Vector2, size: float, alpha: float = 1.0)
         draw_texture_rect(texture,Rect2(rect.position+offset,rect.size),false,Color(0.07,0.09,0.11,alpha*0.80))
     draw_texture_rect(texture,rect,false,Color(1.0,1.0,1.0,alpha))
 
+
+func _draw_host(id: String, at: Vector2, size: float, alpha: float = 1.0) -> void:
+    if sprites.has(id):
+        _outlined_sprite(id,at,size,alpha)
+        return
+    # No invisible inventions: hand-drawn low-resolution silhouettes for items
+    # that do not yet have dedicated pixel sprite assets.
+    var ink := Color("#1a2631")
+    var light := Color("#f2e4c5")
+    var pos := at + Vector2(0,-8)
+    match id:
+        "hammer":
+            draw_colored_polygon(PackedVector2Array([pos+Vector2(-19,-6),pos+Vector2(-7,-17),
+                pos+Vector2(12,-15),pos+Vector2(21,-1),pos+Vector2(13,13),
+                pos+Vector2(-13,12)]),Color("#9d9b9b"))
+            draw_line(pos+Vector2(-9,-12),pos+Vector2(7,-9),light,2.0)
+            draw_line(pos+Vector2(-3,1),pos+Vector2(8,10),ink,3.0)
+        "board":
+            draw_rect(Rect2(pos+Vector2(-15,-21),Vector2(30,39)),ink)
+            draw_rect(Rect2(pos+Vector2(-12,-18),Vector2(24,33)),Color("#b68a5f"))
+            draw_line(pos+Vector2(-3,-17),pos+Vector2(-3,14),Color("#624832"),3.0)
+            draw_line(pos+Vector2(-11,-4),pos+Vector2(11,-4),Color("#e1bf81"),3.0)
+        "boots":
+            draw_rect(Rect2(pos+Vector2(-15,-15),Vector2(11,21)),Color("#cb8ca9"))
+            draw_rect(Rect2(pos+Vector2(2,-15),Vector2(11,21)),Color("#cb8ca9"))
+            draw_rect(Rect2(pos+Vector2(-20,2),Vector2(16,9)),ink)
+            draw_rect(Rect2(pos+Vector2(2,2),Vector2(17,9)),ink)
+        "coffee":
+            draw_rect(Rect2(pos+Vector2(-14,-12),Vector2(24,23)),Color("#e5c1a4"))
+            draw_rect(Rect2(pos+Vector2(-12,-15),Vector2(20,8)),Color("#7b473b"))
+            draw_arc(pos+Vector2(9,-2),10,-PI/2,PI/2,12,light,4.0)
+            draw_line(pos+Vector2(-8,-20),pos+Vector2(-6,-28),Color("#d7e2dc"),2.0)
+        "paper":
+            draw_rect(Rect2(pos+Vector2(-16,-21),Vector2(32,42)),ink)
+            draw_rect(Rect2(pos+Vector2(-13,-19),Vector2(26,36)),light)
+            for k in range(3):
+                draw_rect(Rect2(pos+Vector2(-9,-12+9*k),Vector2(17,3)),Color("#b18e76"))
+        "battery":
+            draw_rect(Rect2(pos+Vector2(-14,-18),Vector2(28,36)),ink)
+            draw_rect(Rect2(pos+Vector2(-11,-14),Vector2(22,29)),Color("#8dcdd6"))
+            draw_rect(Rect2(pos+Vector2(-6,-22),Vector2(12,5)),light)
+            draw_line(pos+Vector2(4,-11),pos+Vector2(-4,1),Color("#f8edaf"),4.0)
+            draw_line(pos+Vector2(-4,1),pos+Vector2(5,4),Color("#f8edaf"),4.0)
+        "grease":
+            draw_circle(pos+Vector2(0,10),19.0,ink)
+            draw_circle(pos+Vector2(0,9),14.0,Color("#c6bd86"))
+            draw_circle(pos+Vector2(-6,3),4.0,light)
+        "bones":
+            draw_circle(pos+Vector2(0,-11),13.0,light)
+            draw_rect(Rect2(pos+Vector2(-9,-7),Vector2(18,19)),light)
+            draw_rect(Rect2(pos+Vector2(-8,-15),Vector2(5,5)),ink)
+            draw_rect(Rect2(pos+Vector2(4,-15),Vector2(5,5)),ink)
+            draw_line(pos+Vector2(-14,19),pos+Vector2(15,12),light,4.0)
+        "bandage":
+            draw_rect(Rect2(pos+Vector2(-18,-11),Vector2(36,24)),Color("#d6e4cb"))
+            draw_rect(Rect2(pos+Vector2(-5,-17),Vector2(10,34)),Color("#d6e4cb"))
+            draw_rect(Rect2(pos+Vector2(-3,-10),Vector2(6,20)),Color("#db7584"))
+            draw_rect(Rect2(pos+Vector2(-10,-3),Vector2(20,6)),Color("#db7584"))
+        "magnet":
+            draw_arc(pos,15.0,0.0,PI,22,Color("#c8a5f3"),8.0)
+            draw_rect(Rect2(pos+Vector2(-19,-4),Vector2(9,19)),Color("#e3919e"))
+            draw_rect(Rect2(pos+Vector2(10,-4),Vector2(9,19)),Color("#8dccf0"))
+        "mirror":
+            draw_rect(Rect2(pos+Vector2(-17,-23),Vector2(34,42)),Color("#d9b07b"))
+            draw_rect(Rect2(pos+Vector2(-12,-18),Vector2(24,32)),Color("#b4e0ee"))
+            draw_line(pos+Vector2(3,-17),pos+Vector2(-7,5),ink,2.0)
+            draw_line(pos+Vector2(-7,5),pos+Vector2(4,14),ink,2.0)
+        "ice":
+            draw_colored_polygon(PackedVector2Array([pos+Vector2(0,-26),pos+Vector2(15,-5),
+                pos+Vector2(8,20),pos+Vector2(-12,14),pos+Vector2(-18,-5)]),Color("#98dcef"))
+            draw_line(pos+Vector2(0,-23),pos+Vector2(1,15),light,2.0)
+        _:
+            draw_circle(pos,16.0,Color("#bba795"))
+            draw_rect(Rect2(pos+Vector2(-8,-9),Vector2(16,18)),ink)
+
 func _environment() -> void:
     var road: bool = clock >= 130.0 and clock < 275.0
     var dusk: bool = clock >= 275.0
@@ -873,6 +948,15 @@ func _environment() -> void:
 func _draw() -> void:
     render_frame_count += 1
     _environment()
+    # Telegraph falling rocks clearly before impact; impact is a separate timed effect.
+    for falling in rockfalls:
+        var ratio: float = clampf(float(falling.age)/float(falling.delay),0.0,1.0)
+        var center: Vector2 = falling.pos
+        var rad: float = float(falling.radius)*(0.75+ratio*0.25)
+        draw_arc(center,rad,0.0,TAU,27,Color(1.0,0.65,0.38,0.4+ratio*0.55),2.5)
+        draw_circle(center,9.0,Color(0.2,0.12,0.12,0.35))
+        var airborne: Vector2 = center+Vector2(0,-98.0*(1.0-ratio))
+        _draw_host("hammer",airborne,36.0+15.0*ratio)
     # Persistent hazards with safe non-negative radii.
     for h in hazards:
         var ratio: float = clampf(float(h.age)/float(h.life),0.0,1.0)
@@ -914,7 +998,7 @@ func _draw() -> void:
         draw_ellipse_shadow(a.pos,22.0)
         var host: String = str(recipe.host)
         var motion: float = sin(float(a.phase)*8.0)*2.5 if host in ["chicken","goblin"] else 0.0
-        _outlined_sprite(host,a.pos+Vector2(0,motion),48.0 if host=="saucer" else 43.0,0.68 if recipe.mods.ghost else 1.0)
+        _draw_host(host,a.pos+Vector2(0,motion),48.0 if host=="saucer" else 43.0,0.68 if recipe.mods.ghost else 1.0)
         if float(a.pulse)>0.0:
             var pulse_fade: float = clampf(float(a.pulse)/0.32,0.0,1.0)
             draw_arc(a.pos,18.0+25.0*(1.0-pulse_fade),0.0,TAU,21,Color(1.0,0.91,0.72,pulse_fade*0.75),2.0)
@@ -977,6 +1061,10 @@ func _draw() -> void:
             Color(hue.r,hue.g,hue.b,fade*0.68),2.6)
     for particle in sparks:
         draw_rect(Rect2(particle.pos,Vector2(4,4)),particle.color)
+    if speed_boost > 0.0:
+        draw_arc(hero_position,32.0,0.0,TAU,21,Color(0.65,0.83,1.0,0.65),2.0)
+    if coffee_boost > 0.0:
+        draw_arc(hero_position,37.0,0.0,TAU,21,Color(0.97,0.70,0.43,0.45),2.0)
     draw_ellipse_shadow(hero_position,21.0)
     var bounce: float = sin(hero_stride)*2.3
     _outlined_sprite(hero_type,hero_position+Vector2(0,bounce),53.0)
