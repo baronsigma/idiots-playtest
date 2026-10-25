@@ -43,9 +43,21 @@ var running := false
 var toast_seconds := 0.0
 var refresh_elapsed := 0.0
 var latest_recipes: Array = []
+var owned_parts: Array = ["goblin", "chicken", "torch", "hive"]
+var reward_overlay: Control
+var reward_heading: Label
+var reward_note: Label
+var reward_buttons: Array = []
+var reward_descriptions: Array = []
+var reward_options: Array = []
+var reward_mode := ""
+var meta_label: Label
+var meta: Dictionary = {"renown": 0, "wins": 0, "hp": 0, "purse": 0}
+const META_PATH := "user://idiots_godot_alpha_meta.json"
 
 func _ready() -> void:
     grammar = GrammarScript.new()
+    _load_meta()
     ui_root = Control.new()
     ui_root.name = "IdiotHUD"
     ui_root.size = BASE_SIZE
@@ -53,6 +65,9 @@ func _ready() -> void:
     _build_hud()
     _build_engineering()
     _build_menu()
+    _build_reward_overlay()
+    world.discovery_due.connect(_offer_discovery)
+    world.evolution_due.connect(_offer_evolution)
     world.updated.connect(_refresh_stats)
     world.finished.connect(_finished)
     world.notice.connect(_toast)
@@ -60,6 +75,7 @@ func _ready() -> void:
     _fit_canvas()
     _refresh_board()
     _refresh_stats()
+    _refresh_meta()
 
 func _fit_canvas() -> void:
     var viewport_size: Vector2 = get_viewport_rect().size
@@ -220,32 +236,51 @@ func _build_menu() -> void:
         blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
         _button(hero_menu,"PLAY AS "+heroes[i].to_upper(),Vector2(x+18,439),Vector2(265,35),_select_hero.bind(heroes[i]),true)
     _text(hero_menu,"Continuous combat  ·  Procedural inventions  ·  Very poor decisions",Vector2(228,526),16,INK,735)
-    _text(hero_menu,"Godot alpha.2 — movement and engineering prototype, not the complete campaign",Vector2(260,567),13,MUTED,780)
+    meta_label = _text(hero_menu,"",Vector2(330,555),15,GOLD,580)
+    _button(hero_menu,"RENOWN: +10 HP",Vector2(331,594),Vector2(222,37),_buy_meta.bind("hp"))
+    _button(hero_menu,"RENOWN: +8 GOLD",Vector2(566,594),Vector2(222,37),_buy_meta.bind("purse"))
 
 func _select_hero(id: String) -> void:
     hero_menu.visible = false
     start_overlay.visible = false
     hero_id = id
     running = true
-    world.start(id)
+    owned_parts = ["goblin", "chicken", "torch", "hive"]
+    slot_ids = ["goblin", "chicken", "torch", "hive", "", ""]
+    wires = [true, true, false, false, true, false, false]
+    world.start(id, int(meta.get("hp", 0)) * 10, int(meta.get("purse", 0)) * 8)
     _refresh_board()
     _toast("You're now responsible for several objects. Terrible news.")
 
 func _finished(won: bool) -> void:
     running = false
+    reward_overlay.visible = false
+    var earned := (12 if won else 2) + mini(int(world.kills / 20), 8)
+    meta["renown"] = int(meta.get("renown", 0)) + earned
+    if won:
+        meta["wins"] = int(meta.get("wins", 0)) + 1
+    _save_meta()
+    _refresh_meta()
     hero_menu.visible = true
     start_overlay.visible = true
-    _toast("THE MAYOR HAS BEEN DEFEATED." if won else "THE VILLAGE HAS SURVIVED YOUR VISIT.")
+    _toast(("THE MAYOR FELL." if won else "YOUR IDIOT FELL.") + " +" + str(earned) + " RENOWN.")
 
 func _restart() -> void:
     if running:
-        world.start(hero_id)
+        reward_overlay.visible = false
+        owned_parts = ["goblin", "chicken", "torch", "hive"]
+        slot_ids = ["goblin", "chicken", "torch", "hive", "", ""]
+        wires = [true, true, false, false, true, false, false]
+        world.start(hero_id, int(meta.get("hp", 0)) * 10, int(meta.get("purse", 0)) * 8)
         _refresh_board()
     else:
         hero_menu.visible = true
         start_overlay.visible = true
 
 func _part_clicked(id: String) -> void:
+    if not owned_parts.has(id):
+        selection_label.text = "Not discovered yet: " + str(grammar.parts[id].name)
+        return
     chosen=id
     selection_label.text="Selected: "+str(grammar.parts[id].name)+"  →  select a board slot"
     _refresh_board()
@@ -312,6 +347,7 @@ func _refresh_board() -> void:
         link_buttons[i].text = "●" if bool(wires[i]) else "×"
         link_buttons[i].modulate = GREEN if bool(wires[i]) else Color("#bc8393")
     for id in PART_IDS:
+        inventory_buttons[id].disabled = not owned_parts.has(id)
         inventory_buttons[id].modulate = GOLD if id==chosen else Color.WHITE
     latest_recipes=_recipes()
     world.set_inventions(latest_recipes)
@@ -363,6 +399,144 @@ func _process(delta: float) -> void:
     if toast_seconds>0.0:
         toast_seconds -= delta
         if toast_seconds<=0.0:message_label.text=""
+
+
+func _load_meta() -> void:
+    if not FileAccess.file_exists(META_PATH):
+        return
+    var file := FileAccess.open(META_PATH, FileAccess.READ)
+    if file == null:
+        return
+    var parsed: Variant = JSON.parse_string(file.get_as_text())
+    if parsed is Dictionary:
+        for key in ["renown", "wins", "hp", "purse"]:
+            meta[key] = maxi(0, int(parsed.get(key, 0)))
+        meta["hp"] = mini(5, int(meta["hp"]))
+        meta["purse"] = mini(5, int(meta["purse"]))
+
+func _save_meta() -> void:
+    var file := FileAccess.open(META_PATH, FileAccess.WRITE)
+    if file != null:
+        file.store_string(JSON.stringify(meta))
+
+func _refresh_meta() -> void:
+    if meta_label == null:
+        return
+    meta_label.text = "RENOWN %d   •   WINS %d   •   HEALTH %d/5   •   PURSE %d/5" % [
+        int(meta["renown"]), int(meta["wins"]), int(meta["hp"]), int(meta["purse"])
+    ]
+
+func _buy_meta(kind: String) -> void:
+    if running:
+        return
+    var level := int(meta.get(kind, 0))
+    var cost := 4 + level * 5
+    if level >= 5 or int(meta["renown"]) < cost:
+        _toast("Not enough Renown, or that upgrade is capped.")
+        return
+    meta["renown"] = int(meta["renown"]) - cost
+    meta[kind] = level + 1
+    _save_meta()
+    _refresh_meta()
+    _toast("A lasting improvement. The villagers remain concerned.")
+
+func _build_reward_overlay() -> void:
+    reward_overlay = Control.new()
+    reward_overlay.position = Vector2(17, 100)
+    reward_overlay.size = Vector2(793, 505)
+    reward_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+    ui_root.add_child(reward_overlay)
+    _rect(reward_overlay, Vector2.ZERO, reward_overlay.size, Color("#101b28"), true)
+    _rect(reward_overlay, Vector2(19, 18), Vector2(754, 4), GOLD)
+    reward_heading = _text(reward_overlay, "DISCOVERY", Vector2(34, 39), 27, GOLD, 730, 46)
+    reward_note = _text(reward_overlay, "", Vector2(34, 95), 15, MUTED, 735, 66)
+    reward_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    for i in range(3):
+        var x := 37.0 + i * 246.0
+        var b := _button(reward_overlay, "", Vector2(x, 182), Vector2(226, 66), _select_reward.bind(i), true)
+        reward_buttons.append(b)
+        var label := _text(reward_overlay, "", Vector2(x + 6, 264), 14, INK, 213, 120)
+        label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+        reward_descriptions.append(label)
+    _text(reward_overlay, "No purchase required. Your idiot found this lying around.", Vector2(35, 437), 13, MUTED, 730)
+    reward_overlay.visible = false
+
+func _show_rewards(title: String, note: String, options: Array, mode: String) -> void:
+    reward_mode = mode
+    reward_options = options
+    reward_heading.text = title
+    reward_note.text = note
+    for i in range(3):
+        reward_buttons[i].visible = i < options.size()
+        reward_descriptions[i].visible = i < options.size()
+        if i < options.size():
+            reward_buttons[i].text = str(options[i].get("label", "???"))
+            reward_descriptions[i].text = str(options[i].get("description", ""))
+    reward_overlay.visible = true
+
+func _offer_discovery(tier: int) -> void:
+    if not running:
+        return
+    var missing: Array = []
+    for id in PART_IDS:
+        if not owned_parts.has(id):
+            missing.append(id)
+    missing.shuffle()
+    var options: Array = []
+    for i in range(mini(3, missing.size())):
+        var id: String = str(missing[i])
+        options.append({"id": "part:" + id, "label": str(grammar.parts[id].name).to_upper(),
+            "description": "New part • " + ", ".join(PackedStringArray(grammar.parts[id].get("tags", []))) +
+            ". Connect it on the live board."})
+    var services := [
+        {"id": "kit", "label": "FIELD KIT", "description": "+1 limited-use emergency heal."},
+        {"id": "heal", "label": "VERY SUSPICIOUS MEDICINE", "description": "Restore 40 HP immediately."},
+        {"id": "gold", "label": "UNCLAIMED COINS", "description": "+45 gold. Surprisingly legitimate."}
+    ]
+    for service in services:
+        if options.size() >= 3:
+            break
+        options.append(service)
+    _show_rewards("FOUND SOMETHING QUESTIONABLE", "Discovery %d • pick one; combat resumes afterward." % (tier + 1), options, "loot")
+
+func _offer_evolution(tier: int) -> void:
+    if not running:
+        return
+    var choices: Array = []
+    if hero_id == "jimothy":
+        choices = [{"id": "wide", "label": "SOUP LADLE", "description": "Wider melee sweep; more crowd control."},
+                   {"id": "heated", "label": "HOT SPOON", "description": "Melee attacks start fires."}]
+    elif hero_id == "kram":
+        choices = [{"id": "split", "label": "FORKED TWIG", "description": "Cast additional branching projectiles."},
+                   {"id": "heated", "label": "UNLICENSED EMBERS", "description": "Spells cause lingering burns."}]
+    else:
+        choices = [{"id": "wide", "label": "PLANK OF AUTHORITY", "description": "Broader, heavier board swings."},
+                   {"id": "guard", "label": "BUCKET SUPREMACY", "description": "Incoming hits deal less damage."}]
+    _show_rewards("SIGNATURE WEAPON EVOLVES", "Evolution %d of 2 • choose how your idiot becomes more dangerous." % tier, choices, "weapon")
+
+func _select_reward(index: int) -> void:
+    if not reward_overlay.visible or index < 0 or index >= reward_options.size():
+        return
+    var id: String = str(reward_options[index].id)
+    if reward_mode == "weapon":
+        world.apply_weapon_upgrade(id)
+    elif id.begins_with("part:"):
+        var part_id := id.substr(5)
+        if not owned_parts.has(part_id):
+            owned_parts.append(part_id)
+        chosen = part_id
+        selection_label.text = "New part discovered: " + str(grammar.parts[part_id].name) + ". Place it on the board."
+        _refresh_board()
+    elif id == "kit":
+        world.kits = mini(world.kits + 1, 5)
+    elif id == "heal":
+        world.hp = minf(world.max_hp, world.hp + 40.0)
+    elif id == "gold":
+        world.gold += 45
+    reward_overlay.visible = false
+    world.paused = false
+    world.updated.emit()
+    _toast("Bad idea acquired. Carry on.")
 
 func _unhandled_key_input(event: InputEvent) -> void:
     if not event is InputEventKey:return
