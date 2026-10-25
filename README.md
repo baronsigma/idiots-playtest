@@ -1,6 +1,22 @@
-# IDIOTS! — Godot v0.0.8-alpha.2
+# IDIOTS! — Godot v0.0.8-alpha.4 engineering parity candidate
 
-A Godot 4.7.2 GDScript migration slice based on the surviving **alpha.6.1** continuous-battle prototype. It is not a full campaign port.
+> Draft migration work. **Godot runtime and browser export are not yet verified.** Do not treat this branch as a stable playable release.
+
+The primary reference is the original **continuous HTML alpha.6.1** (in `reference/`), not the discarded five-shift or Test Lab experiments.
+
+This branch retains the continuous Godot combat loop while rebuilding the HTML content and engineering systems: timed discoveries, two weapon evolutions, Renown starters, specialist enemies, **20 tagged parts**, multiple named inventions and distinct lightning, ice, grease, undead, magnetic and healing mechanics. Animated bees, saucers, expanding hazards and a bounded one-generation fire/poison/spore spread are retained. Core six-slot connections and live inventions remain active.
+
+Read [MIGRATION_PARITY.md](MIGRATION_PARITY.md) for exact feature gaps and migration order. This is not full parity yet.
+
+## Run / verify
+
+Open `project.godot` in Godot 4.7.2 and press F5. Use the same keyboard controls as alpha.2: Space pauses, F uses a field kit, F11 toggles fullscreen. Parts unlock through mid-run discovery prompts; after choosing, click their inventory tiles to place them. Renown upgrades appear on the character-select screen after returning from a run.
+
+Automated checks: `godot --headless --path . --script res://tests/test_grammar.gd`, `godot --headless --path . --script res://tests/test_parity.gd`, and `godot --headless --path . --script res://tests/test_engineering.gd`. PR CI also smoke-tests the scene, builds the Web export, and attaches a Web artifact. **A successful headless test is not a substitute for browser playtesting**; an exported Godot app must be served by HTTP with its HTML/WASM/PCK siblings.
+
+---
+
+## Previous alpha.2 notes
 
 ## Changes since alpha.1 hotfix
 

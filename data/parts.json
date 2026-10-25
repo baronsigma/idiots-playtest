@@ -5,7 +5,7 @@
     "rider": 2,
     "mount": 0,
     "carry": 2,
-    "move": 1.0,
+    "move": 1,
     "tags": [
       "drunk",
       "rider"
@@ -49,7 +49,7 @@
     "mount": 3,
     "carry": 3,
     "launch": 3,
-    "move": 2.0,
+    "move": 2,
     "tags": [
       "metal",
       "projectile",
@@ -85,6 +85,133 @@
     "tags": [
       "fungal",
       "spores"
+    ]
+  },
+  "board": {
+    "name": "Plank",
+    "kind": "modifier",
+    "armor": 2,
+    "knockback": 2,
+    "carry": 1,
+    "tags": [
+      "heavy",
+      "armor",
+      "collision"
+    ]
+  },
+  "battery": {
+    "name": "Leaky Battery",
+    "kind": "modifier",
+    "electric": 3,
+    "emit": "lightning",
+    "tags": [
+      "electric",
+      "static",
+      "chain"
+    ]
+  },
+  "grease": {
+    "name": "Grease",
+    "kind": "modifier",
+    "slippery": 3,
+    "tags": [
+      "liquid",
+      "slippery",
+      "flammable"
+    ]
+  },
+  "bones": {
+    "name": "Bones",
+    "kind": "emitter",
+    "emit": "skeletons",
+    "necromancy": 2,
+    "emit_priority": 2,
+    "tags": [
+      "bones",
+      "undead",
+      "summon"
+    ]
+  },
+  "paper": {
+    "name": "Official Form",
+    "kind": "modifier",
+    "stun": 2,
+    "tag_cost": 1,
+    "tags": [
+      "paper",
+      "bureaucracy",
+      "control"
+    ]
+  },
+  "boots": {
+    "name": "Roller Boots",
+    "kind": "modifier",
+    "fast": 2,
+    "tags": [
+      "speed",
+      "movement",
+      "dash"
+    ]
+  },
+  "hammer": {
+    "name": "Big Rock",
+    "kind": "modifier",
+    "heavy": 3,
+    "knockback": 2,
+    "tags": [
+      "heavy",
+      "impact",
+      "physical"
+    ]
+  },
+  "coffee": {
+    "name": "Coffee",
+    "kind": "modifier",
+    "overclock": 2,
+    "tags": [
+      "speed",
+      "overclock",
+      "unstable"
+    ]
+  },
+  "bandage": {
+    "name": "Bandage",
+    "kind": "modifier",
+    "healing": 2,
+    "tags": [
+      "healing",
+      "medic",
+      "support"
+    ]
+  },
+  "magnet": {
+    "name": "Magnet",
+    "kind": "modifier",
+    "pull": 3,
+    "tags": [
+      "magnetic",
+      "metal",
+      "gravity"
+    ]
+  },
+  "mirror": {
+    "name": "Cracked Mirror",
+    "kind": "modifier",
+    "copy": 2,
+    "tags": [
+      "mirror",
+      "reflection",
+      "duplicate"
+    ]
+  },
+  "ice": {
+    "name": "Jar of Winter",
+    "kind": "modifier",
+    "ice": 3,
+    "tags": [
+      "ice",
+      "cold",
+      "freeze"
     ]
   }
 }
