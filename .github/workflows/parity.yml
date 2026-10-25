@@ -19,6 +19,8 @@ jobs:
         run: godot --headless --path . --script res://tests/test_grammar.gd
       - name: Test migration parity
         run: godot --headless --path . --script res://tests/test_parity.gd
+      - name: Test 20-part invention grammar and animated effects
+        run: godot --headless --path . --script res://tests/test_engineering.gd
       - name: Smoke test full scene
         shell: bash
         run: |
