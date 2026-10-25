@@ -736,21 +736,46 @@ func _draw_sprite(id: String, at: Vector2, size: float = 38.0, alpha: float = 1.
     var rect := Rect2(at-Vector2(size*0.5,size*0.70),Vector2(size,size*1.17))
     draw_texture_rect(texture,rect,false,Color(1,1,1,alpha))
 
-func _draw() -> void:
-    draw_rect(Rect2(0,0,832,648),Color("#141d29"))
-    draw_rect(ARENA,Color("#33464a"))
-    # Deterministic tile texture (no RNG used during rendering).
-    for y in range(6,28):
+func _outlined_sprite(id: String, pos: Vector2, size: float, alpha: float = 1.0) -> void:
+    if not sprites.has(id):
+        return
+    var texture: Texture2D = sprites[id]
+    var rect := Rect2(pos-Vector2(size*0.5,size*0.70),Vector2(size,size*1.17))
+    # A two-pixel dark outline makes the tiny pixel silhouettes readable amid hazards.
+    for offset in [Vector2(-2,0),Vector2(2,0),Vector2(0,-2),Vector2(0,2)]:
+        draw_texture_rect(texture,Rect2(rect.position+offset,rect.size),false,Color(0.07,0.09,0.11,alpha*0.80))
+    draw_texture_rect(texture,rect,false,Color(1.0,1.0,1.0,alpha))
+
+func _environment() -> void:
+    var road: bool = clock >= 130.0 and clock < 275.0
+    var dusk: bool = clock >= 275.0
+    draw_rect(Rect2(0,0,832,648),Color("#141c22"))
+    draw_rect(ARENA,Color("#423f40") if dusk else Color("#475648") if road else Color("#394e3f"))
+    # Broken cobbles and grass are deterministic: no flashing tiles or draw-time randomness.
+    for y in range(5,27):
         for x in range(1,36):
-            var xx := x*23.0
-            var yy := y*23.0
-            if ARENA.has_point(Vector2(xx,yy)) and (x*7+y*11)%5==0:
-                draw_rect(Rect2(xx, yy, 17, 3),Color("#455859"))
-            if ARENA.has_point(Vector2(xx,yy)) and (x*13+y*3)%13==0:
-                draw_rect(Rect2(xx+6, yy+5, 3, 3),Color("#648479"))
-    for x in range(int(ARENA.position.x)+20,int(ARENA.end.x)-20,98):
-        draw_rect(Rect2(x, ARENA.position.y+4,24,5),Color("#7b725e"))
-        draw_rect(Rect2(x, ARENA.end.y-8,34,4),Color("#7b725e"))
+            var pt := Vector2(x*23.0+5.0,y*23.0+7.0)
+            if not ARENA.has_point(pt):
+                continue
+            var variant: int = (x*11+y*7)%9
+            if road and pt.y>230.0 and pt.y<480.0:
+                if variant<6:
+                    draw_rect(Rect2(pt,Vector2(17,13)),Color("#615c4f"))
+                    draw_rect(Rect2(pt+Vector2(0,12),Vector2(14,2)),Color("#82755d"))
+            elif variant<3:
+                draw_rect(Rect2(pt,Vector2(3,7)),Color("#66865b") if not dusk else Color("#776c68"))
+                draw_rect(Rect2(pt+Vector2(4,-2),Vector2(2,4)),Color("#7b9568"))
+            elif variant==8:
+                draw_rect(Rect2(pt,Vector2(12,2)),Color("#607263"))
+    if road:
+        draw_rect(Rect2(ARENA.position.x,224,ARENA.size.x,7),Color("#847257"))
+        draw_rect(Rect2(ARENA.position.x,487,ARENA.size.x,7),Color("#847257"))
+    for x in range(62,830,105):
+        draw_rect(Rect2(x,ARENA.position.y+7,Vector2(27,7)),Color("#8e765e"))
+        draw_rect(Rect2(x+12,ARENA.end.y-15,Vector2(26,8)),Color("#8e765e"))
+        draw_rect(Rect2(x+6,ARENA.position.y+14,Vector2(3,12)),Color("#b69a71"))
+
+    _environment()
     # Persistent hazards with safe non-negative radii.
     for h in hazards:
         var ratio: float = clampf(float(h.age)/float(h.life),0.0,1.0)
@@ -766,7 +791,14 @@ func _draw() -> void:
             draw_line(h.pos+Vector2(-rad*0.4,0),h.pos+Vector2(rad*0.4,0),Color("#d8f7ff"),2.0)
             draw_line(h.pos+Vector2(0,-rad*0.35),h.pos+Vector2(0,rad*0.35),Color("#d8f7ff"),2.0)
     for e in enemies:
-        _draw_sprite("taxman" if e.tax else "goblin" if e.archer else "rat",e.pos,53.0 if e.boss else 41.0)
+        var gait: float = sin(float(e.stride)) * (2.0 if e.sprinter else 1.2)
+        var sprite_id: String = "taxman" if e.boss or e.tax else "goblin" if e.kind in ["goblin","archer"] else "rat"
+        draw_ellipse_shadow(e.pos,20.0 if e.boss else 13.0)
+        _outlined_sprite(sprite_id,e.pos+Vector2(0,gait),57.0 if e.boss else 43.0 if e.tax else 37.0)
+        if e.kind=="goblin":
+            draw_rect(Rect2(e.pos+Vector2(-12,-29+gait),Vector2(25,5)),Color("#a5bd82"))
+        if e.tax and not e.boss:
+            draw_rect(Rect2(e.pos+Vector2(-14,-32+gait),Vector2(29,6)),Color("#ba8565"))
         if e.archer:
             draw_line(e.pos + Vector2(-12, -28), e.pos + Vector2(12, -28), Color("#f8c06a"), 2.0)
         if e.sprinter:
@@ -775,14 +807,20 @@ func _draw() -> void:
         draw_rect(Rect2(e.pos+Vector2(-w*0.5,-32),Vector2(w,4)),Color("#1b2027"))
         draw_rect(Rect2(e.pos+Vector2(-w*0.5,-32),Vector2(w*clampf(float(e.hp)/float(e.max_hp),0.0,1.0),4)),Color("#d36a65"))
         if e.flash>0.0:
-            draw_arc(e.pos,19.0,0.0,TAU,12,Color("#ffe9ba"),1.8)
+            var fade: float = clampf(float(e.flash)/0.19,0.0,1.0)
+            draw_circle(e.pos+Vector2(0,-9),22.0,Color(1.0,0.9,0.64,fade*0.26))
+            draw_arc(e.pos,24.0,0.0,TAU,17,Color(1.0,0.89,0.66,fade),2.4)
         if e.burn>0.0:draw_circle(e.pos+Vector2(0,-23),5.0,Color("#f28c57"))
         if e.poison>0.0:draw_circle(e.pos+Vector2(12,-17),4.0,Color("#88d769"))
     for a in actors:
         var recipe: Dictionary = a.recipe
         draw_ellipse_shadow(a.pos,22.0)
         var host: String = str(recipe.host)
-        _draw_sprite(host,a.pos,48.0 if host=="saucer" else 41.0,0.68 if recipe.mods.ghost else 1.0)
+        var motion: float = sin(float(a.phase)*8.0)*2.5 if host in ["chicken","goblin"] else 0.0
+        _outlined_sprite(host,a.pos+Vector2(0,motion),48.0 if host=="saucer" else 43.0,0.68 if recipe.mods.ghost else 1.0)
+        if float(a.pulse)>0.0:
+            var pulse_fade: float = clampf(float(a.pulse)/0.32,0.0,1.0)
+            draw_arc(a.pos,18.0+25.0*(1.0-pulse_fade),0.0,TAU,21,Color(1.0,0.91,0.72,pulse_fade*0.75),2.0)
         if str(recipe.rider)!="":
             _draw_sprite(str(recipe.rider),a.pos+Vector2(0,-26),30.0)
         if recipe.mods.fire:
@@ -799,14 +837,20 @@ func _draw() -> void:
             draw_arc(a.pos,35.0+sin(float(a.phase)*2.0)*3.0,0.0,TAU,22,Color(0.79,0.66,1.0,0.52),1.5)
         if recipe.ids.has("torch"):
             _draw_sprite("torch",a.pos+Vector2(-18,-12),20.0)
-        draw_string(ThemeDB.fallback_font,a.pos+Vector2(-37,34),str(recipe.title).substr(0,20),HORIZONTAL_ALIGNMENT_LEFT,-1,10,Color("#f6e1af"))
+        if float(a.pulse)>0.0:
+            draw_string(ThemeDB.fallback_font,a.pos+Vector2(-39,-37),str(recipe.title).substr(0,17),
+                HORIZONTAL_ALIGNMENT_LEFT,-1,11,Color("#ffe1a3"))
     for unit in skeletons:
         var skeleton_pos: Vector2 = unit.pos
         draw_circle(skeleton_pos + Vector2(0,10),12.0,Color(0.66,0.87,0.71,0.18))
         _draw_sprite("ghost",skeleton_pos,31.0,0.86)
         draw_arc(skeleton_pos,12.0,0.0,TAU,13,Color(0.63,0.84,0.76,0.58),1.0)
     for b in bees:
-        _draw_sprite("bee",b.pos+Vector2(0,sin(float(b.phase))*3.0),15.0)
+        var wing: float = sin(float(b.phase)*2.8)*4.0
+        var bee_pos: Vector2 = b.pos+Vector2(0,sin(float(b.phase))*3.0)
+        draw_line(bee_pos+Vector2(-3,-2),bee_pos+Vector2(-8,-7-wing*0.3),Color("#f6e4a8"),2.0)
+        draw_line(bee_pos+Vector2(2,-2),bee_pos+Vector2(7,-7+wing*0.3),Color("#f6e4a8"),2.0)
+        _draw_sprite("bee",bee_pos,17.0)
     for arc in lightning_arcs:
         var power: float = clampf(float(arc.life)/float(arc.max_life),0.0,1.0)
         var a_pos: Vector2 = arc["from"]
@@ -817,13 +861,43 @@ func _draw() -> void:
         draw_line(a_pos,b_pos,Color("#f3fbff",power*0.60),1.0)
     for p in projectiles:
         var col := color_fire if p.kind=="fire" else color_poison if p.kind=="poison" else color_ice if p.kind in ["arcane","ice"] else Color("#c9a8ff") if p.kind=="echo" else color_gold
-        draw_line(p.pos-p.vel.normalized()*10.0,p.pos,col,3.5)
+        draw_line(p.pos-p.vel.normalized()*18.0,p.pos,col,5.0)
+        draw_line(p.pos-p.vel.normalized()*7.0,p.pos,Color("#fff3df"),2.0)
         _draw_sprite("saucer" if p.kind=="saucer" else "shot",p.pos,22.0 if p.kind=="saucer" else 14.0)
-    for s in sparks:
-        draw_rect(Rect2(s.pos,Vector2(4,4)),s.color)
-    draw_ellipse_shadow(hero_position,24.0)
-    _draw_sprite(hero_type,hero_position,49.0)
-    draw_string(ThemeDB.fallback_font,Vector2(24,116),"THE VILLAGE INCIDENT  /  GODOT MIGRATION SLICE",HORIZONTAL_ALIGNMENT_LEFT,-1,15,Color("#f8ddb3"))
+    for shot in hostile_shots:
+        var tip: Vector2 = shot.pos
+        var travel: Vector2 = shot.vel.normalized()
+        draw_line(tip-travel*13.0,tip+travel*5.0,Color("#ffd59b"),3.0)
+        draw_line(tip-travel*13.0,tip-travel*18.0,Color("#8b514c"),2.0)
+    for wave in attack_waves:
+        var pct: float = clampf(float(wave.life)/float(wave.max_life),0.0,1.0)
+        draw_arc(wave.pos,float(wave.radius),float(wave.angle)-0.85,float(wave.angle)+0.85,19,
+            Color(wave.color.r,wave.color.g,wave.color.b,pct*0.8),6.0)
+    for ring in impact_rings:
+        var fade: float = clampf(float(ring.life)/float(ring.max_life),0.0,1.0)
+        var hue: Color = color_fire if ring.kind=="fire" else color_poison if ring.kind=="poison" else color_ice if ring.kind in ["ice","arcane"] else Color("#f0ddae")
+        draw_arc(ring.pos,float(ring.radius)*(1.25-0.5*fade),0.0,TAU,18,
+            Color(hue.r,hue.g,hue.b,fade*0.68),2.6)
+    for particle in sparks:
+        draw_rect(Rect2(particle.pos,Vector2(4,4)),particle.color)
+    draw_ellipse_shadow(hero_position,21.0)
+    var bounce: float = sin(hero_stride)*2.3
+    _outlined_sprite(hero_type,hero_position+Vector2(0,bounce),53.0)
+    if hero_attack_pose>0.0:
+        var hand: Vector2 = hero_position+hero_direction*23.0+Vector2(0,-13)
+        draw_line(hero_position+Vector2(0,-8),hand,Color("#f9df99"),5.0)
+        draw_circle(hand,5.0,Color("#fff6d2"))
+    if hero_flash>0.0:
+        var pain: float = clampf(hero_flash/0.24,0.0,1.0)
+        draw_arc(hero_position,27.0,0.0,TAU,20,Color(1.0,0.35,0.36,pain),3.0)
+    if encounter_banner_time>0.0:
+        var alpha: float = minf(1.0,encounter_banner_time*0.7)
+        draw_rect(Rect2(214,118,390,37),Color(0.10,0.12,0.16,alpha*0.78))
+        draw_string(ThemeDB.fallback_font,Vector2(236,144),encounter_banner,
+            HORIZONTAL_ALIGNMENT_LEFT,-1,18,Color(1.0,0.83,0.54,alpha))
+    else:
+        draw_string(ThemeDB.fallback_font,Vector2(31,120),stage()+" / A MUNICIPAL EMERGENCY",
+            HORIZONTAL_ALIGNMENT_LEFT,-1,12,Color("#f1e3bc"))
 
 func draw_ellipse_shadow(pos: Vector2, radius: float) -> void:
     draw_circle(pos+Vector2(0,15),radius,Color(0.02,0.03,0.04,0.30))
