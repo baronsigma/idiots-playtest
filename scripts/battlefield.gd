@@ -226,6 +226,9 @@ func _process(delta: float) -> void:
     _update_projectiles(dt)
     _update_bees(dt)
     _update_hazards(dt)
+    if ended:
+        queue_redraw()
+        return
     if discovery_index < DISCOVERY_TIMES.size() and clock >= float(DISCOVERY_TIMES[discovery_index]):
         var due := discovery_index
         discovery_index += 1
@@ -475,7 +478,7 @@ func _draw() -> void:
         if e.archer:
             draw_line(e.pos + Vector2(-12, -28), e.pos + Vector2(12, -28), Color("#f8c06a"), 2.0)
         if e.sprinter:
-            draw_arc(e.pos, 22.0, 0.0, TAU, 16, Color("#f0c88a", 0.55), 1.5)
+            draw_arc(e.pos, 22.0, 0.0, TAU, 16, Color(0.94, 0.78, 0.54, 0.55), 1.5)
         var w := 46.0 if e.boss else 31.0
         draw_rect(Rect2(e.pos+Vector2(-w*0.5,-32),Vector2(w,4)),Color("#1b2027"))
         draw_rect(Rect2(e.pos+Vector2(-w*0.5,-32),Vector2(w*clampf(float(e.hp)/float(e.max_hp),0.0,1.0),4)),Color("#d36a65"))
