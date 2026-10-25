@@ -771,9 +771,9 @@ func _environment() -> void:
         draw_rect(Rect2(ARENA.position.x,224,ARENA.size.x,7),Color("#847257"))
         draw_rect(Rect2(ARENA.position.x,487,ARENA.size.x,7),Color("#847257"))
     for x in range(62,830,105):
-        draw_rect(Rect2(x,ARENA.position.y+7,Vector2(27,7)),Color("#8e765e"))
-        draw_rect(Rect2(x+12,ARENA.end.y-15,Vector2(26,8)),Color("#8e765e"))
-        draw_rect(Rect2(x+6,ARENA.position.y+14,Vector2(3,12)),Color("#b69a71"))
+        draw_rect(Rect2(Vector2(x,ARENA.position.y+7),Vector2(27,7)),Color("#8e765e"))
+        draw_rect(Rect2(Vector2(x+12,ARENA.end.y-15),Vector2(26,8)),Color("#8e765e"))
+        draw_rect(Rect2(Vector2(x+6,ARENA.position.y+14),Vector2(3,12)),Color("#b69a71"))
 
     _environment()
     # Persistent hazards with safe non-negative radii.
