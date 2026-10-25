@@ -9,6 +9,8 @@ signal evolution_due(tier: int)
 const ARENA := Rect2(18.0, 95.0, 799.0, 525.0)
 const MAX_ENEMIES := 36
 const MAX_BEES := 44
+const MAX_SKELETONS := 12
+const MAX_ARCS := 48
 const MAX_HAZARDS := 22
 const MAX_PROJECTILES := 70
 const TOTAL_TIME := 390.0
@@ -39,6 +41,9 @@ var enemies: Array = []
 var actors: Array = []
 var projectiles: Array = []
 var bees: Array = []
+var skeletons: Array = []
+var lightning_arcs: Array = []
+var hero_ward := 0.0
 var hazards: Array = []
 var sparks: Array = []
 var spawn_clock := 0.0
@@ -77,6 +82,9 @@ func start(hero_id: String, hp_boost: int = 0, gold_boost: int = 0) -> void:
     enemies.clear()
     projectiles.clear()
     bees.clear()
+    skeletons.clear()
+    lightning_arcs.clear()
+    hero_ward = 0.0
     hazards.clear()
     sparks.clear()
     actors.clear()
@@ -178,8 +186,9 @@ func _hurt_enemy(index: int, damage: float, kind: String = "physical") -> void:
     e.flash = 0.13
     if kind == "fire":e.burn = maxf(float(e.burn),2.6)
     if kind == "poison":e.poison = maxf(float(e.poison),3.5)
-    if kind == "ice":e.stun = maxf(float(e.stun),0.25)
-    _spark(e.pos, color_fire if kind=="fire" else color_poison if kind=="poison" else color_gold, 2)
+    if kind == "ice":e.stun = maxf(float(e.stun),0.38)
+    if kind == "electric":e.stun = maxf(float(e.stun),0.23)
+    _spark(e.pos, color_fire if kind=="fire" else color_poison if kind=="poison" else color_ice if kind in ["ice","electric"] else color_gold, 2)
     if e.hp <= 0.0:
         var was_boss: bool = e.boss
         enemies.remove_at(index)
@@ -219,12 +228,14 @@ func _process(delta: float) -> void:
         return
     var dt := minf(delta,0.045)
     clock += dt
+    hero_ward = maxf(0.0, hero_ward - dt)
     concern = minf(100.0, concern + dt * (0.035 + clock*0.0007))
     _update_hero(dt)
     _update_enemies(dt)
     _update_actors(dt)
     _update_projectiles(dt)
     _update_bees(dt)
+    _update_skeletons(dt)
     _update_hazards(dt)
     if ended:
         queue_redraw()
@@ -239,6 +250,11 @@ func _process(delta: float) -> void:
         evolution_index += 1
         paused = true
         evolution_due.emit(tier)
+    for i in range(lightning_arcs.size()-1,-1,-1):
+        var arc: Dictionary = lightning_arcs[i]
+        arc.life = float(arc.life) - dt
+        if float(arc.life) <= 0.0:
+            lightning_arcs.remove_at(i)
     for i in range(sparks.size()-1,-1,-1):
         var s: Dictionary = sparks[i]
         s.life = float(s.life)-dt
@@ -336,6 +352,8 @@ func _damage_hero(raw_damage: float) -> void:
         return
     var armor_factor := 0.86 if hero_type=="bog" else 1.0
     armor_factor *= maxf(0.68, 1.0 - 0.12 * float(weapon_guard))
+    if hero_ward > 0.0:
+        armor_factor *= 0.79
     hp = maxf(0.0, hp - raw_damage * armor_factor)
     _spark(hero_position, Color("#e76d70"), 5)
     updated.emit()
@@ -361,6 +379,8 @@ func _update_actors(dt: float) -> void:
                 target = enemies[near].pos
             var vel: Vector2 = (target - a.pos).normalized()
             var velocity := 48.0 if host=="goblin" else 64.0 if host=="chicken" else 113.0 if host=="saucer" else 42.0
+            if bool(recipe.mods.boots):
+                velocity *= 1.33
             a.pos += vel * velocity*dt
         else:
             # Stationary emplacements stay independent; never attach to hero each frame.
@@ -374,8 +394,13 @@ func _update_actors(dt: float) -> void:
             if gap.length()<36.0 and gap.length()>0.1:
                 a.pos += gap.normalized()*29.0*dt
         a.pos = Vector2(clampf(a.pos.x,ARENA.position.x+18,ARENA.end.x-18),clampf(a.pos.y,ARENA.position.y+22,ARENA.end.y-17))
+        if bool(recipe.mods.magnet):
+            for e in enemies:
+                var offset: Vector2 = a.pos - e.pos
+                if offset.length() < 145.0 and offset.length() > 21.0 and not bool(e.boss):
+                    e.pos += offset.normalized() * 26.0 * dt
         if a.cooldown<=0.0:
-            a.cooldown = 3.0 if recipe.mods.bees else 2.15
+            a.cooldown = (3.0 if recipe.mods.bees else 2.15) * (0.78 if recipe.mods.coffee else 1.0)
             a.casts = int(a.casts)+1
             var near := _nearest_enemy(a.pos)
             if recipe.mods.bees:
@@ -388,9 +413,87 @@ func _update_actors(dt: float) -> void:
                 _make_hazard(a.pos,"spores",35.0)
             if recipe.mods.ghost:
                 _spark(a.pos, Color("#a4cce9"),11)
+            if recipe.mods.grease:
+                _make_hazard(a.pos, "grease", 31.0)
+            if recipe.mods.ice:
+                _make_hazard(a.pos, "ice", 31.0)
+            if recipe.mods.electric:
+                _electric_burst(a.pos, 10.0 + recipe.ids.size() * 1.5, 3)
+            if recipe.mods.bones:
+                _raise_skeleton(a.pos)
+            if recipe.mods.healing and hp < max_hp:
+                var patched: float = minf(2.3, max_hp-hp)
+                hp += patched
+                _spark(hero_position, Color("#88e5b2"), 7)
+                updated.emit()
+            if recipe.mods.armor:
+                hero_ward = maxf(hero_ward, 1.15)
+            if recipe.mods.paper and near >= 0:
+                enemies[near].stun = maxf(float(enemies[near].stun), 0.50)
+                if int(a.casts) % 4 == 0:
+                    gold += 1
+                    updated.emit()
             if near>=0:
-                var kind := "saucer" if host=="saucer" else "fire" if recipe.mods.fire else "poison" if recipe.mods.poison else "arcane"
-                _projectile(a.pos,enemies[near].pos,kind,18.0+recipe.ids.size()*4.0)
+                var target: Vector2 = enemies[near].pos
+                var kind := "saucer" if host=="saucer" else "fire" if recipe.mods.fire else "poison" if recipe.mods.poison else "ice" if recipe.mods.ice else "arcane"
+                var power: float = 18.0 + recipe.ids.size() * 4.0
+                _projectile(a.pos,target,kind,power)
+                if recipe.mods.mirror:
+                    _projectile(a.pos + Vector2(10,-10),target + Vector2(-12,10),"echo",power*0.52)
+                if recipe.mods.heavy and near < enemies.size() and not bool(enemies[near].boss):
+                    var knock: Vector2 = (enemies[near].pos-a.pos).normalized()
+                    enemies[near].pos += knock * 27.0
+                    _spark(enemies[near].pos, color_gold, 8)
+
+
+func _electric_burst(origin: Vector2, power: float, maximum: int) -> void:
+    var used: Dictionary = {}
+    var from: Vector2 = origin
+    for step in range(maximum):
+        var best := -1
+        var nearest := 170.0 * 170.0
+        for i in range(enemies.size()):
+            if used.has(i):
+                continue
+            var dist: float = from.distance_squared_to(enemies[i].pos)
+            if dist < nearest:
+                nearest = dist
+                best = i
+        if best < 0:
+            break
+        used[best] = true
+        var endpoint: Vector2 = enemies[best].pos
+        if lightning_arcs.size() >= MAX_ARCS:
+            lightning_arcs.pop_front()
+        lightning_arcs.append({"from": from, "to": endpoint, "life": 0.27, "max_life": 0.27})
+        _hurt_enemy(best, power * pow(0.73, float(step)), "electric")
+        from = endpoint
+
+func _raise_skeleton(origin: Vector2) -> void:
+    if skeletons.size() >= MAX_SKELETONS:
+        return
+    skeletons.append({"pos":origin + Vector2(rng.randf_range(-14.0,14.0),rng.randf_range(-14.0,14.0)),
+        "life":7.0, "cooldown":0.35, "phase":rng.randf_range(0.0,6.0)})
+    _spark(origin, Color("#c7a7e5"), 5)
+
+func _update_skeletons(dt: float) -> void:
+    for i in range(skeletons.size()-1,-1,-1):
+        var unit: Dictionary = skeletons[i]
+        unit.life = float(unit.life) - dt
+        unit.cooldown = float(unit.cooldown) - dt
+        unit.phase = float(unit.phase) + dt * 6.0
+        if unit.life <= 0.0:
+            skeletons.remove_at(i)
+            continue
+        var near := _nearest_enemy(unit.pos)
+        if near < 0:
+            continue
+        var target: Vector2 = enemies[near].pos
+        unit.pos += (target - unit.pos).normalized() * 69.0 * dt
+        if unit.pos.distance_to(target) < 25.0 and unit.cooldown <= 0.0:
+            unit.cooldown = 1.25
+            _hurt_enemy(near, 10.0)
+            _spark(target, Color("#b5d4b5"), 3)
 
 func _update_projectiles(dt: float) -> void:
     for i in range(projectiles.size()-1,-1,-1):
@@ -424,7 +527,7 @@ func _update_bees(dt: float) -> void:
         if near>=0:
             b.pos += (enemies[near].pos-b.pos).normalized()*145.0*dt
             if b.pos.distance_to(enemies[near].pos)<16.0 and b.cooldown<=0.0:
-                var kind := "fire" if b.mods.fire else "poison" if b.mods.poison else "physical"
+                var kind := "fire" if b.mods.fire else "ice" if b.mods.ice else "poison" if b.mods.poison else "physical"
                 _hurt_enemy(near,8.0,kind)
                 b.cooldown = 0.52
                 b.life -= 1.2
