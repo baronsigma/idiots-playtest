@@ -629,17 +629,17 @@ func _draw() -> void:
         if recipe.mods.electric:
             draw_arc(a.pos,27.0,0.15+float(a.phase),3.4+float(a.phase),16,Color("#78d7ff"),2.0)
         if recipe.mods.ice:
-            draw_arc(a.pos,24.0,0.0,TAU,17,Color("#b7f7ff",0.65),1.3)
+            draw_arc(a.pos,24.0,0.0,TAU,17,Color(0.72,0.97,1.0,0.65),1.3)
         if recipe.mods.magnet:
-            draw_arc(a.pos,35.0+sin(float(a.phase)*2.0)*3.0,0.0,TAU,22,Color("#c9a8ff",0.52),1.5)
+            draw_arc(a.pos,35.0+sin(float(a.phase)*2.0)*3.0,0.0,TAU,22,Color(0.79,0.66,1.0,0.52),1.5)
         if recipe.ids.has("torch"):
             _draw_sprite("torch",a.pos+Vector2(-18,-12),20.0)
         draw_string(ThemeDB.fallback_font,a.pos+Vector2(-37,34),str(recipe.title).substr(0,20),HORIZONTAL_ALIGNMENT_LEFT,-1,10,Color("#f6e1af"))
     for unit in skeletons:
         var skeleton_pos: Vector2 = unit.pos
-        draw_circle(skeleton_pos + Vector2(0,10),12.0,Color("#a9dfb6",0.18))
+        draw_circle(skeleton_pos + Vector2(0,10),12.0,Color(0.66,0.87,0.71,0.18))
         _draw_sprite("ghost",skeleton_pos,31.0,0.86)
-        draw_arc(skeleton_pos,12.0,0.0,TAU,13,Color("#a1d5c2",0.58),1.0)
+        draw_arc(skeleton_pos,12.0,0.0,TAU,13,Color(0.63,0.84,0.76,0.58),1.0)
     for b in bees:
         _draw_sprite("bee",b.pos+Vector2(0,sin(float(b.phase))*3.0),15.0)
     for arc in lightning_arcs:
